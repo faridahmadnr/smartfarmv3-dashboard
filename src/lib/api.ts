@@ -61,7 +61,7 @@ export const authApi = {
             access_token: string;
             refresh_token: string;
             expires_in: number;
-        }>("${API_PREFIX}/auth/login", {
+        }>(`${API_PREFIX}/auth/login`, {
             method: "POST",
             body: JSON.stringify({ username, password }),
         });
@@ -74,11 +74,11 @@ export const authApi = {
             username: string;
             full_name: string;
             role: string;
-        }>("${API_PREFIX}/auth/me", { token });
+        }>(`${API_PREFIX}/auth/me`, { token });
     },
 
     updateProfile: async (data: { full_name?: string; phone?: string }, token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/auth/me", {
+        return fetchWithAuth(`${API_PREFIX}/auth/me`, {
             method: "PATCH",
             body: JSON.stringify(data),
             token,
@@ -91,7 +91,7 @@ export const authApi = {
         confirmPassword: string,
         token?: string
     ) => {
-        return fetchWithAuth("${API_PREFIX}/auth/change-password", {
+        return fetchWithAuth(`${API_PREFIX}/auth/change-password`, {
             method: "POST",
             body: JSON.stringify({
                 old_password: oldPassword,
@@ -103,7 +103,7 @@ export const authApi = {
     },
 
     logout: async (token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/auth/logout", {
+        return fetchWithAuth(`${API_PREFIX}/auth/logout`, {
             method: "POST",
             token,
         });
@@ -145,7 +145,7 @@ export const usersApi = {
         role: string;
         pemilik_id?: string;
     }, token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/users", {
+        return fetchWithAuth(`${API_PREFIX}/users`, {
             method: "POST",
             body: JSON.stringify(userData),
             token,
@@ -159,7 +159,7 @@ export const usersApi = {
         phone?: string;
         password: string;
     }, token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/users/me/peternaks", {
+        return fetchWithAuth(`${API_PREFIX}/users/me/peternaks`, {
             method: "POST",
             body: JSON.stringify(peternakData),
             token,
@@ -223,7 +223,7 @@ export const kandangApi = {
         deskripsi?: string;
         pemilik_id: string;
     }, token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/kandangs", {
+        return fetchWithAuth(`${API_PREFIX}/kandangs`, {
             method: "POST",
             body: JSON.stringify(kandangData),
             token,
@@ -293,7 +293,7 @@ export const sensorDataApi = {
         populasi?: number;
         death?: number;
     }, token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/sensor-data", {
+        return fetchWithAuth(`${API_PREFIX}/sensor-data`, {
             method: "POST",
             body: JSON.stringify(sensorData),
             token,
@@ -338,7 +338,7 @@ export const predictionsApi = {
         amoniak: number;
         hari_ke: number;
     }, token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/predictions/classify", {
+        return fetchWithAuth(`${API_PREFIX}/predictions/classify`, {
             method: "POST",
             body: JSON.stringify(data),
             token,
@@ -348,7 +348,7 @@ export const predictionsApi = {
     forecast: async (data: {
         kandang_id: string;
     }, token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/predictions/forecast", {
+        return fetchWithAuth(`${API_PREFIX}/predictions/forecast`, {
             method: "POST",
             body: JSON.stringify(data),
             token,
@@ -356,11 +356,11 @@ export const predictionsApi = {
     },
 
     getModels: async (token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/predictions/models", { token });
+        return fetchWithAuth(`${API_PREFIX}/predictions/models`, { token });
     },
 
     reloadModels: async (token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/predictions/load-models", {
+        return fetchWithAuth(`${API_PREFIX}/predictions/load-models`, {
             method: "POST",
             token,
         });
@@ -388,7 +388,7 @@ export const notificationsApi = {
     },
 
     getUnreadCount: async (token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/notifications/unread-count", { token });
+        return fetchWithAuth(`${API_PREFIX}/notifications/unread-count`, { token });
     },
 
     markAsRead: async (id: string, token?: string) => {
@@ -399,7 +399,7 @@ export const notificationsApi = {
     },
 
     markAllAsRead: async (token?: string) => {
-        return fetchWithAuth("${API_PREFIX}/notifications/read-all", {
+        return fetchWithAuth(`${API_PREFIX}/notifications/read-all`, {
             method: "PUT",
             token,
         });
