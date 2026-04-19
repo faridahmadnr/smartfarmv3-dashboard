@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSensorData, useKandangs, useCreateSensorData, useUpdateSensorData } from "@/hooks/useApi";
+import { useSensorData, useMyKandang, useCreateSensorData, useUpdateSensorData } from "@/hooks/useApi";
 import { useLiveSensorData } from "@/hooks/useLiveSensorData";
 
 // ─── Stat Card (same pattern as dashboard) ────────────────────────────────────
@@ -65,10 +65,7 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
 export default function SensorDataPage() {
     const { data: session, status } = useSession();
-    const { data: kandangData, loading: loadingKandang } = useKandangs();
-
-    const kandang = kandangData?.items?.[0];
-    const kandangId = kandang?.id;
+    const { data: kandang, loading: loadingKandang } = useMyKandang();
 
     // ── All filter/pagination state declared first (needed by useSensorData) ──
     const [currentPage, setCurrentPage] = useState(1);
@@ -82,8 +79,8 @@ export default function SensorDataPage() {
     const [appliedStart, setAppliedStart] = useState("");
     const [appliedEnd, setAppliedEnd] = useState("");
 
-    // Reset page when kandang or date filter changes
-    useEffect(() => { setCurrentPage(1); }, [kandangId]);
+    // Reset page when date filter changes
+    useEffect(() => { setCurrentPage(1); }, []);
 
     const applyDateFilter = () => {
         // Pad dates to full ISO range so BE receives e.g. "2024-03-01T00:00:00" / "2024-03-31T23:59:59"
@@ -102,15 +99,12 @@ export default function SensorDataPage() {
 
     const [showFilters, setShowFilters] = useState(false);
 
-    const { data: sensorData, loading, isFetching, error, refetch } = useSensorData(
-        kandangId ? {
-            kandang_id: kandangId,
-            page: currentPage,
-            page_size: pageSize,
-            start_date: appliedStart || undefined,
-            end_date: appliedEnd || undefined,
-        } : undefined
-    );
+    const { data: sensorData, loading, isFetching, error, refetch } = useSensorData({
+        page: currentPage,
+        page_size: pageSize,
+        start_date: appliedStart || undefined,
+        end_date: appliedEnd || undefined,
+    });
 
     const { mutate: createSensorData, loading: creating } = useCreateSensorData();
     const { mutate: updateSensorData, loading: updating } = useUpdateSensorData();
@@ -209,7 +203,6 @@ export default function SensorDataPage() {
         e.preventDefault();
         setFormError("");
         const payload: any = {
-            kandang_id: kandangId,
             timestamp: `${formData.tanggal}T${formData.jam}:00`,
             hari_ke: parseInt(formData.hari_ke) || 1,
             suhu: parseFloat(formData.suhu) || 0,

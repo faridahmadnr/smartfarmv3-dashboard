@@ -195,6 +195,10 @@ export const usersApi = {
 
 // Kandang API
 export const kandangApi = {
+    getMe: async (token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/kandangs/me`, { token });
+    },
+
     list: async (params?: {
         page?: number;
         per_page?: number;
@@ -255,17 +259,11 @@ export const kandangApi = {
 // Sensor Data API
 export const sensorDataApi = {
     list: async (params?: {
-        kandang_id?: string;
         page?: number;
         page_size?: number;
         start_date?: string;
         end_date?: string;
     }, token?: string) => {
-        if (!params?.kandang_id) {
-            // No kandang_id means we can't fetch — return empty result
-            return { success: true, data: { items: [], total: 0, page: 1, page_size: 50 } };
-        }
-
         const searchParams = new URLSearchParams();
         if (params?.page) searchParams.set("page", params.page.toString());
         if (params?.page_size) searchParams.set("page_size", params.page_size.toString());
@@ -273,7 +271,7 @@ export const sensorDataApi = {
         if (params?.end_date) searchParams.set("end_time", params.end_date);
 
         const query = searchParams.toString();
-        return fetchWithAuth(`${API_PREFIX}/sensor-data/kandang/${params.kandang_id}${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/sensor-data${query ? `?${query}` : ""}`, { token });
     },
 
     get: async (id: string, token?: string) => {
@@ -281,7 +279,6 @@ export const sensorDataApi = {
     },
 
     create: async (sensorData: {
-        kandang_id: string;
         timestamp: string;
         hari_ke: number;
         suhu: number;
@@ -314,29 +311,34 @@ export const sensorDataApi = {
         });
     },
 
-    getLatest: async (kandangId: string, limit?: number, token?: string) => {
+    getLatest: async (limit?: number, token?: string) => {
         const searchParams = new URLSearchParams();
         if (limit) searchParams.set("limit", limit.toString());
         const query = searchParams.toString();
-        return fetchWithAuth(`${API_PREFIX}/sensor-data/kandang/${kandangId}/latest${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/sensor-data/latest${query ? `?${query}` : ""}`, { token });
     },
 
-    getStats: async (kandangId: string, hours?: number, token?: string) => {
+    getStats: async (hours?: number, token?: string) => {
         const searchParams = new URLSearchParams();
         if (hours) searchParams.set("hours", hours.toString());
         const query = searchParams.toString();
-        return fetchWithAuth(`${API_PREFIX}/sensor-data/kandang/${kandangId}/stats${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/sensor-data/stats${query ? `?${query}` : ""}`, { token });
     },
 };
 
 // Predictions API
 export const predictionsApi = {
     classify: async (data: {
-        kandang_id: string;
+        hari_ke: number;
         suhu: number;
         kelembaban: number;
         amoniak: number;
-        hari_ke: number;
+        pakan: number;
+        minum: number;
+        bobot: number;
+        populasi: number;
+        luas_kandang: number;
+        hour: number;
     }, token?: string) => {
         return fetchWithAuth(`${API_PREFIX}/predictions/classify`, {
             method: "POST",
@@ -346,7 +348,12 @@ export const predictionsApi = {
     },
 
     forecast: async (data: {
-        kandang_id: string;
+        sensor_history: Array<{
+            temp: number;
+            hum: number;
+            ammo: number;
+            Death: number;
+        }>;
     }, token?: string) => {
         return fetchWithAuth(`${API_PREFIX}/predictions/forecast`, {
             method: "POST",
@@ -366,8 +373,12 @@ export const predictionsApi = {
         });
     },
 
-    getHistory: async (kandangId: string, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/predictions/history?kandang_id=${kandangId}`, { token });
+    getHistory: async (params?: { type?: string; limit?: number }, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (params?.type) searchParams.set("type", params.type);
+        if (params?.limit) searchParams.set("limit", params.limit.toString());
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/predictions/history${query ? `?${query}` : ""}`, { token });
     },
 };
 
