@@ -1,289 +1,376 @@
 "use client";
 
+import { useCallback } from "react";
 import { useSession } from "next-auth/react";
+import Link from "next/link";
+import {
+    Thermometer,
+    Droplets,
+    Wind,
+    Users,
+    HeartCrack,
+    BarChart2,
+    BrainCircuit,
+    Bell,
+    Clock,
+    CalendarDays,
+    CheckCircle2,
+} from "lucide-react";
+
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import Link from "next/link";
-import { useKandangs, useNotifications } from "@/hooks/useApi";
+import { useKandangs, useNotifications, useSensorData } from "@/hooks/useApi";
+import { useLiveSensorData } from "@/hooks/useLiveSensorData";
+
+// ─── Stat Card ────────────────────────────────────────────────────────────────
+
+interface StatCardProps {
+    label: string;
+    value: string;
+    unit?: string;
+    icon: React.ReactNode;
+    iconBg: string;
+    iconColor: string;
+    topBar: string;
+    loading?: boolean;
+    alert?: boolean;
+}
+
+function StatCard({ label, value, unit, icon, iconBg, iconColor, topBar, loading, alert }: StatCardProps) {
+    return (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className={`h-1 w-full ${topBar}`} />
+            <div className="p-5">
+                <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider">{label}</p>
+                    <div className={`p-2 rounded-xl ${iconBg} ${iconColor}`}>{icon}</div>
+                </div>
+                {loading ? (
+                    <div className="h-8 w-20 bg-gray-100 animate-pulse rounded-lg" />
+                ) : (
+                    <div className="flex items-baseline gap-1.5">
+                        <span className={`text-2xl font-bold tracking-tight ${alert ? "text-red-600" : "text-gray-900"}`}>
+                            {value}
+                        </span>
+                        {unit && <span className="text-sm text-gray-400 font-medium">{unit}</span>}
+                    </div>
+                )}
+            </div>
+        </div>
+    );
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-    const { data: session, status } = useSession();
+    const { status } = useSession();
     const { data: kandangData, loading: loadingKandang } = useKandangs();
     const { data: notifData, loading: loadingNotif } = useNotifications();
+
+    const kandang = kandangData?.items?.[0];
+    const kandangId = kandang?.id;
+
+    const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData(
+        kandangId ? { kandang_id: kandangId } : undefined
+    );
+
+    const onNewData = useCallback(() => { refetchSensor(); }, [refetchSensor]);
+    useLiveSensorData(onNewData);
 
     if (status === "loading") {
         return (
             <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
             </div>
         );
     }
 
-    const kandangs = kandangData?.items || [];
     const notifications = notifData?.items || [];
-    const recentAlerts = notifications.filter(n => !n.is_read).slice(0, 5);
+    const unreadAlerts = notifications.filter((n: any) => !n.is_read).slice(0, 3);
+    const latestSensor = kandang?.latest_sensor;
+    const sensorItems = sensorData?.items || [];
+    const recentSensors = sensorItems.slice(0, 10);
 
-    // Calculate statistics from API data
-    const totalKandang = kandangs.length;
-    const totalPopulasi = kandangs.reduce((sum, k) => sum + (k.latest_sensor?.populasi || 0), 0);
-    const avgSuhu = kandangs.length > 0
-        ? (kandangs.reduce((sum, k) => sum + (k.latest_sensor?.suhu || 0), 0) / kandangs.filter(k => k.latest_sensor).length).toFixed(1)
-        : "-";
+    // Status kandang
+    const getStatus = () => {
+        if (!latestSensor) return { label: "Tidak Ada Data", variant: "default" as const, dot: "bg-gray-400" };
+        if (latestSensor.amoniak > 10 || latestSensor.suhu > 34) return { label: "Bahaya", variant: "danger" as const, dot: "bg-red-500" };
+        if (latestSensor.amoniak > 5 || latestSensor.suhu > 32) return { label: "Waspada", variant: "warning" as const, dot: "bg-yellow-400" };
+        return { label: "Normal", variant: "success" as const, dot: "bg-green-500" };
+    };
+    const kandangStatus = getStatus();
 
-    const kandangDanger = kandangs.filter(k => {
-        if (!k.latest_sensor) return false;
-        return k.latest_sensor.amoniak > 10 || k.latest_sensor.suhu > 32;
-    }).length;
+    // Last update
+    const lastUpdate = latestSensor?.timestamp
+        ? (() => {
+            const diffMs = Date.now() - new Date(latestSensor.timestamp).getTime();
+            const m = Math.floor(diffMs / 60000);
+            const h = Math.floor(m / 60);
+            if (m < 60) return `${m} menit lalu`;
+            return `${h} jam lalu`;
+        })()
+        : null;
+
+    const hariKe = (recentSensors[0] as any)?.hari_ke ?? null;
 
     const formatTimeAgo = (dateString: string) => {
-        const now = new Date();
-        const date = new Date(dateString);
-        const diffMs = now.getTime() - date.getTime();
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffHours = Math.floor(diffMins / 60);
-        const diffDays = Math.floor(diffHours / 24);
-
-        if (diffMins < 60) return `${diffMins} menit lalu`;
-        if (diffHours < 24) return `${diffHours} jam lalu`;
-        return `${diffDays} hari lalu`;
+        const diffMs = Date.now() - new Date(dateString).getTime();
+        const m = Math.floor(diffMs / 60000);
+        const h = Math.floor(m / 60);
+        const d = Math.floor(h / 24);
+        if (m < 60) return `${m} menit lalu`;
+        if (h < 24) return `${h} jam lalu`;
+        return `${d} hari lalu`;
     };
+
+    const formatAmoniak = (val?: number) =>
+        val !== undefined && val !== null ? val.toFixed(3) : "-";
 
     return (
         <div className="space-y-6">
-            {/* Welcome */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                    Selamat Datang, {session?.user?.name || "User"}!
-                </h1>
-                <p className="text-gray-500 mt-1">
-                    Dashboard monitoring peternakan ayam Anda
-                </p>
+
+            {/* Header */}
+            <div className="flex items-start justify-between gap-4">
+                <div>
+                    <h1 className="text-2xl font-bold text-gray-900">Dashboard Monitoring</h1>
+                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
+                        <p className="text-sm text-gray-400">
+                            {kandang ? `${kandang.nama} — ${kandang.lokasi || "Kandang Utama"}` : "Memuat data kandang..."}
+                        </p>
+                        {hariKe && (
+                            <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
+                                <CalendarDays className="w-3 h-3" />
+                                Hari ke-{hariKe}
+                            </span>
+                        )}
+                        {lastUpdate && (
+                            <span className="inline-flex items-center gap-1 text-xs text-gray-400">
+                                <Clock className="w-3 h-3" />
+                                {lastUpdate}
+                            </span>
+                        )}
+                    </div>
+                </div>
+                {kandang && (
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <span className={`w-2 h-2 rounded-full animate-pulse ${kandangStatus.dot}`} />
+                        <Badge variant={kandangStatus.variant} className="text-xs px-2.5 py-1">
+                            Kondisi {kandangStatus.label}
+                        </Badge>
+                    </div>
+                )}
             </div>
 
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-xl bg-green-50 text-green-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Total Kandang</p>
-                                {loadingKandang ? (
-                                    <div className="h-8 w-16 bg-gray-200 animate-pulse rounded"></div>
-                                ) : (
-                                    <p className="text-2xl font-bold text-gray-900">{totalKandang}</p>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Total Populasi</p>
-                                {loadingKandang ? (
-                                    <div className="h-8 w-20 bg-gray-200 animate-pulse rounded"></div>
-                                ) : (
-                                    <p className="text-2xl font-bold text-gray-900">{totalPopulasi.toLocaleString()}</p>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-xl bg-yellow-50 text-yellow-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Avg. Temperature</p>
-                                {loadingKandang ? (
-                                    <div className="h-8 w-16 bg-gray-200 animate-pulse rounded"></div>
-                                ) : (
-                                    <p className="text-2xl font-bold text-gray-900">{avgSuhu}°C</p>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-
-                <Card>
-                    <CardContent className="p-6">
-                        <div className="flex items-center gap-4">
-                            <div className="p-3 rounded-xl bg-red-50 text-red-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                </svg>
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Kandang Danger</p>
-                                {loadingKandang ? (
-                                    <div className="h-8 w-12 bg-gray-200 animate-pulse rounded"></div>
-                                ) : (
-                                    <p className="text-2xl font-bold text-red-600">{kandangDanger}</p>
-                                )}
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* Stat Cards */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+                <StatCard
+                    label="Suhu"
+                    value={latestSensor?.suhu?.toFixed(1) ?? "-"}
+                    unit="°C"
+                    icon={<Thermometer className="w-4 h-4" />}
+                    iconBg="bg-amber-50" iconColor="text-amber-500" topBar="bg-amber-400"
+                    loading={loadingKandang}
+                    alert={latestSensor ? latestSensor.suhu > 32 : false}
+                />
+                <StatCard
+                    label="Kelembaban"
+                    value={latestSensor?.kelembaban?.toFixed(1) ?? "-"}
+                    unit="%"
+                    icon={<Droplets className="w-4 h-4" />}
+                    iconBg="bg-sky-50" iconColor="text-sky-500" topBar="bg-sky-400"
+                    loading={loadingKandang}
+                />
+                <StatCard
+                    label="Amoniak"
+                    value={formatAmoniak(latestSensor?.amoniak)}
+                    unit="ppm"
+                    icon={<Wind className="w-4 h-4" />}
+                    iconBg="bg-orange-50" iconColor="text-orange-500" topBar="bg-orange-400"
+                    loading={loadingKandang}
+                    alert={latestSensor ? latestSensor.amoniak > 10 : false}
+                />
+                <StatCard
+                    label="Populasi"
+                    value={latestSensor?.populasi?.toLocaleString() ?? "-"}
+                    unit="ekor"
+                    icon={<Users className="w-4 h-4" />}
+                    iconBg="bg-emerald-50" iconColor="text-emerald-500" topBar="bg-emerald-400"
+                    loading={loadingKandang}
+                />
+                <StatCard
+                    label="Kematian"
+                    value={latestSensor?.death != null ? String(latestSensor.death) : "0"}
+                    unit="ekor"
+                    icon={<HeartCrack className="w-4 h-4" />}
+                    iconBg="bg-red-50" iconColor="text-red-500" topBar="bg-red-400"
+                    loading={loadingKandang}
+                    alert={latestSensor ? (latestSensor.death ?? 0) > 0 : false}
+                />
             </div>
 
+            {/* Main Content */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Recent Alerts */}
+
+                {/* Sensor Table */}
                 <div className="lg:col-span-2">
-                    <Card>
-                        <CardHeader>
-                            <div className="flex items-center justify-between">
-                                <CardTitle>Notifikasi Terbaru</CardTitle>
-                                <Link href="/notifications">
-                                    <button className="text-sm text-green-600 hover:text-green-700">Lihat Semua</button>
+                    <Card className="overflow-hidden h-full">
+                        <CardHeader className="border-b border-gray-100">
+                            <div className="flex items-center justify-between gap-2">
+                                <CardTitle className="text-base">Data Sensor Terbaru</CardTitle>
+                                <Link
+                                    href="/sensor-data"
+                                    className="text-xs font-medium text-green-600 hover:text-green-700 transition-colors flex-shrink-0"
+                                >
+                                    Lihat Semua →
                                 </Link>
                             </div>
                         </CardHeader>
-                        <CardContent>
-                            {loadingNotif ? (
-                                <div className="space-y-4">
+                        <CardContent className="p-0">
+                            {loadingSensor ? (
+                                <div className="p-6 space-y-2">
                                     {[1, 2, 3].map(i => (
-                                        <div key={i} className="h-16 bg-gray-100 animate-pulse rounded-lg"></div>
+                                        <div key={i} className="h-10 bg-gray-50 animate-pulse rounded-lg" />
                                     ))}
                                 </div>
-                            ) : recentAlerts.length === 0 ? (
-                                <div className="py-8 text-center text-gray-500">
-                                    Tidak ada notifikasi baru
+                            ) : recentSensors.length === 0 ? (
+                                <div className="py-12 text-center">
+                                    <div className="w-10 h-10 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                                        <BarChart2 className="w-5 h-5 text-gray-400" />
+                                    </div>
+                                    <p className="text-sm text-gray-400">Belum ada data sensor</p>
                                 </div>
                             ) : (
-                                <div className="space-y-4">
-                                    {recentAlerts.map((alert) => (
-                                        <div key={alert.id} className="flex items-start gap-4 p-3 rounded-lg bg-gray-50 hover:bg-gray-100 transition-colors">
-                                            <div className={`p-2 rounded-full ${alert.type === "danger" || alert.type === "death_forecast"
-                                                    ? "bg-red-100 text-red-600"
-                                                    : alert.type === "alert" || alert.type === "abnormal_classification"
-                                                        ? "bg-yellow-100 text-yellow-600"
-                                                        : "bg-blue-100 text-blue-600"
-                                                }`}>
-                                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                                                </svg>
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <p className="text-sm font-medium text-gray-900">{alert.title}</p>
-                                                <p className="text-xs text-gray-500 truncate">{alert.message}</p>
-                                            </div>
-                                            <span className="text-xs text-gray-400 whitespace-nowrap">
-                                                {formatTimeAgo(alert.created_at)}
-                                            </span>
-                                        </div>
-                                    ))}
+                                <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                        <thead>
+                                            <tr className="bg-gray-50/80">
+                                                <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Waktu</th>
+                                                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Suhu</th>
+                                                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Hum</th>
+                                                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">NH₃ (ppm)</th>
+                                                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Pop</th>
+                                                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Death</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {recentSensors.map((row: any) => (
+                                                <tr key={row.id} className="hover:bg-gray-50/60 transition-colors">
+                                                    <td className="py-3 px-4 text-xs text-gray-500">
+                                                        {new Date(row.timestamp).toLocaleString("id-ID", {
+                                                            day: "2-digit", month: "short",
+                                                            hour: "2-digit", minute: "2-digit",
+                                                        })}
+                                                    </td>
+                                                    <td className={`py-3 px-4 text-right font-medium ${row.suhu > 32 ? "text-red-600" : "text-gray-800"}`}>
+                                                        {row.suhu?.toFixed(1)}°C
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right text-gray-700">
+                                                        {row.kelembaban?.toFixed(1)}%
+                                                    </td>
+                                                    <td className={`py-3 px-4 text-right font-medium tabular-nums ${row.amoniak > 10 ? "text-red-600" : "text-gray-800"}`}>
+                                                        {typeof row.amoniak === "number" ? row.amoniak.toFixed(3) : "-"}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-right text-gray-700">
+                                                        {row.populasi?.toLocaleString() || "-"}
+                                                    </td>
+                                                    <td className={`py-3 px-4 text-right font-medium ${row.death > 0 ? "text-red-600" : "text-gray-700"}`}>
+                                                        {row.death ?? 0}
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
                                 </div>
                             )}
                         </CardContent>
                     </Card>
                 </div>
 
-                {/* Quick Actions */}
-                <div>
-                    <Card>
-                        <CardHeader>
-                            <CardTitle>Quick Actions</CardTitle>
+                {/* Sidebar */}
+                <div className="flex flex-col gap-4">
+
+                    {/* Notifications */}
+                    <Card className="flex-1">
+                        <CardHeader className="border-b border-gray-100">
+                            <div className="flex items-center justify-between gap-2">
+                                <div className="flex items-center gap-2">
+                                    <Bell className="w-4 h-4 text-gray-500" />
+                                    <CardTitle className="text-base">Notifikasi</CardTitle>
+                                </div>
+                                <Link
+                                    href="/notifications"
+                                    className="text-xs font-medium text-green-600 hover:text-green-700 transition-colors flex-shrink-0"
+                                >
+                                    Lihat Semua →
+                                </Link>
+                            </div>
                         </CardHeader>
-                        <CardContent className="space-y-3">
-                            <Link href="/sensor-data" className="block">
-                                <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-green-50 hover:bg-green-100 transition-colors text-left">
-                                    <div className="p-2 rounded-lg bg-green-100 text-green-600">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-900">Input Data Sensor</p>
-                                        <p className="text-xs text-gray-500">Tambah data sensor baru</p>
-                                    </div>
-                                </button>
-                            </Link>
-
-                            <Link href="/predictions" className="block">
-                                <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-purple-50 hover:bg-purple-100 transition-colors text-left">
-                                    <div className="p-2 rounded-lg bg-purple-100 text-purple-600">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-900">Lihat Prediksi ML</p>
-                                        <p className="text-xs text-gray-500">Analisis & forecasting</p>
-                                    </div>
-                                </button>
-                            </Link>
-
-                            <Link href="/kandang" className="block">
-                                <button className="w-full flex items-center gap-3 p-3 rounded-lg bg-blue-50 hover:bg-blue-100 transition-colors text-left">
-                                    <div className="p-2 rounded-lg bg-blue-100 text-blue-600">
-                                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
-                                        </svg>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm font-medium text-gray-900">Kelola Kandang</p>
-                                        <p className="text-xs text-gray-500">Lihat semua kandang</p>
-                                    </div>
-                                </button>
-                            </Link>
+                        <CardContent className="p-4">
+                            {loadingNotif ? (
+                                <div className="space-y-2">
+                                    {[1, 2].map(i => (
+                                        <div key={i} className="h-12 bg-gray-50 animate-pulse rounded-lg" />
+                                    ))}
+                                </div>
+                            ) : unreadAlerts.length === 0 ? (
+                                <div className="py-5 text-center">
+                                    <CheckCircle2 className="w-7 h-7 text-green-400 mx-auto mb-2" />
+                                    <p className="text-xs text-gray-400">Semua kondisi normal</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-2">
+                                    {unreadAlerts.map((alert: any) => {
+                                        const isDanger = alert.type === "danger" || alert.type === "death_forecast";
+                                        const isWarning = alert.type === "alert" || alert.type === "abnormal_classification";
+                                        return (
+                                            <div key={alert.id}
+                                                className="flex items-start gap-3 p-3 rounded-xl bg-gray-50 hover:bg-gray-100/70 transition-colors">
+                                                <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${isDanger ? "bg-red-500" : isWarning ? "bg-yellow-400" : "bg-blue-400"}`} />
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-xs font-medium text-gray-800 truncate">{alert.title}</p>
+                                                    <p className="text-xs text-gray-400 mt-0.5">{formatTimeAgo(alert.created_at)}</p>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </CardContent>
                     </Card>
 
-                    {/* Kandang Summary */}
-                    {!loadingKandang && kandangs.length > 0 && (
-                        <Card className="mt-6">
-                            <CardHeader>
-                                <CardTitle>Status Kandang</CardTitle>
-                            </CardHeader>
-                            <CardContent className="space-y-3">
-                                {kandangs.slice(0, 5).map((kandang) => {
-                                    const status = !kandang.is_active
-                                        ? "Inactive"
-                                        : !kandang.latest_sensor
-                                            ? "Normal"
-                                            : kandang.latest_sensor.amoniak > 10 || kandang.latest_sensor.suhu > 32
-                                                ? "Danger"
-                                                : kandang.latest_sensor.amoniak > 5 || kandang.latest_sensor.suhu > 30
-                                                    ? "Warning"
-                                                    : "Normal";
+                    {/* Quick Actions */}
+                    <Card>
+                        <CardHeader className="border-b border-gray-100 pb-3">
+                            <CardTitle className="text-base">Menu Cepat</CardTitle>
+                        </CardHeader>
+                        <CardContent className="p-4">
+                            <div className="grid grid-cols-2 gap-2">
+                                <Link href="/sensor-data">
+                                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-emerald-50 hover:bg-emerald-100 transition-colors cursor-pointer text-center">
+                                        <div className="p-2 rounded-lg bg-emerald-100 text-emerald-600">
+                                            <BarChart2 className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-800">Data Sensor</p>
+                                            <p className="text-[10px] text-gray-400 leading-tight mt-0.5">Riwayat IoT</p>
+                                        </div>
+                                    </div>
+                                </Link>
+                                <Link href="/predictions">
+                                    <div className="flex flex-col items-center gap-2 p-3 rounded-xl bg-violet-50 hover:bg-violet-100 transition-colors cursor-pointer text-center">
+                                        <div className="p-2 rounded-lg bg-violet-100 text-violet-600">
+                                            <BrainCircuit className="w-4 h-4" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs font-semibold text-gray-800">Prediksi ML</p>
+                                            <p className="text-[10px] text-gray-400 leading-tight mt-0.5">Hasil otomatis</p>
+                                        </div>
+                                    </div>
+                                </Link>
+                            </div>
+                        </CardContent>
+                    </Card>
 
-                                    return (
-                                        <Link key={kandang.id} href={`/kandang/${kandang.id}`}>
-                                            <div className="flex items-center justify-between p-2 hover:bg-gray-50 rounded-lg transition-colors">
-                                                <span className="text-sm text-gray-900">{kandang.nama}</span>
-                                                <Badge
-                                                    variant={
-                                                        status === "Normal" ? "success" :
-                                                            status === "Warning" ? "warning" :
-                                                                status === "Danger" ? "danger" : "default"
-                                                    }
-                                                >
-                                                    {status}
-                                                </Badge>
-                                            </div>
-                                        </Link>
-                                    );
-                                })}
-                            </CardContent>
-                        </Card>
-                    )}
                 </div>
             </div>
         </div>

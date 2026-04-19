@@ -4,6 +4,15 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import { kandangApi, usersApi, sensorDataApi, notificationsApi, activityLogsApi, predictionsApi, getNotificationWsUrl } from "@/lib/api";
 
+// Suppress SESSION_EXPIRED errors — the overlay in the layout handles redirect
+function parseError(err: unknown): string | null {
+    if (err instanceof Error) {
+        if (err.message === "SESSION_EXPIRED") return null;
+        return err.message;
+    }
+    return "Failed to fetch";
+}
+
 // Types
 export interface Kandang {
     id: string;
@@ -24,11 +33,13 @@ export interface Kandang {
         suhu: number;
         kelembaban: number;
         amoniak: number;
-        populasi: number;
+        populasi?: number;
         pakan?: number;
         minum?: number;
         bobot?: number;
-        status: string;
+        death?: number;
+        status?: string;
+        timestamp: string;
     };
 }
 
@@ -74,6 +85,7 @@ export interface Notification {
     type: string;
     title: string;
     message: string;
+    data?: string | null;        // JSON string with extra details
     kandang_id?: string;
     kandang?: {
         id: string;
@@ -173,7 +185,7 @@ export function useKandangs() {
             }
         } catch (err) {
             console.error("Kandang fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
@@ -220,7 +232,7 @@ export function useKandang(id: string) {
             }
         } catch (err) {
             console.error("Kandang detail fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
@@ -277,7 +289,7 @@ export function useUsers(params?: { role?: string; pemilik_id?: string }) {
             }
         } catch (err) {
             console.error("Users fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
@@ -324,7 +336,7 @@ export function useUser(id: string) {
             }
         } catch (err) {
             console.error("User detail fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
@@ -344,21 +356,23 @@ export function useUser(id: string) {
 }
 
 // Sensor Data hooks
-export function useSensorData(params?: { kandang_id?: string; page?: number }) {
+export function useSensorData(params?: { kandang_id?: string; page?: number; page_size?: number; start_date?: string; end_date?: string }) {
     const { data: session, status } = useSession();
     const [data, setData] = useState<{ items: SensorData[]; total: number } | null>(null);
-    const [loading, setLoading] = useState(true);
+    const [loading, setLoading] = useState(true);   // true only on first load (no data yet)
+    const [isFetching, setIsFetching] = useState(false); // true on any background refetch
     const [error, setError] = useState<string | null>(null);
     const hasFetched = useRef(false);
-    const prevKandangId = useRef(params?.kandang_id);
+    const prevKey = useRef<string>("");
 
-    // Reset hasFetched when kandang_id changes
+    // Reset hasFetched when any pagination param changes
     useEffect(() => {
-        if (prevKandangId.current !== params?.kandang_id) {
-            prevKandangId.current = params?.kandang_id;
+        const key = `${params?.kandang_id}|${params?.page}|${params?.page_size}|${params?.start_date}|${params?.end_date}`;
+        if (prevKey.current !== key) {
+            prevKey.current = key;
             hasFetched.current = false;
         }
-    }, [params?.kandang_id]);
+    }, [params?.kandang_id, params?.page, params?.page_size, params?.start_date, params?.end_date]);
 
     const refetch = useCallback(async () => {
         if (status === "loading") return;
@@ -374,7 +388,13 @@ export function useSensorData(params?: { kandang_id?: string; page?: number }) {
             return;
         }
 
-        setLoading(true);
+        // If we already have data, use isFetching (keeps old rows visible)
+        // Otherwise use loading (first paint — no content yet)
+        if (data !== null) {
+            setIsFetching(true);
+        } else {
+            setLoading(true);
+        }
         setError(null);
 
         try {
@@ -397,11 +417,12 @@ export function useSensorData(params?: { kandang_id?: string; page?: number }) {
             }
         } catch (err) {
             console.error("Sensor data fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch");
+            setError(parseError(err));
         } finally {
             setLoading(false);
+            setIsFetching(false);
         }
-    }, [session?.accessToken, status, params?.kandang_id, params?.page]);
+    }, [session?.accessToken, status, params?.kandang_id, params?.page, params?.page_size, params?.start_date, params?.end_date, data]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -413,16 +434,22 @@ export function useSensorData(params?: { kandang_id?: string; page?: number }) {
         }
     }, [status, session?.accessToken, refetch]);
 
-    return { data, loading, error, refetch };
+    return { data, loading, isFetching, error, refetch };
 }
 
 // Notifications hooks
-export function useNotifications() {
+export function useNotifications(page: number = 1, limit: number = 20) {
     const { data: session, status } = useSession();
-    const [data, setData] = useState<{ items: Notification[]; unread_count: number } | null>(null);
+    const [data, setData] = useState<{
+        items: Notification[];
+        unread_count: number;
+        total: number;
+        total_pages: number;
+        page: number;
+        limit: number;
+    } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const hasFetched = useRef(false);
 
     const refetch = useCallback(async () => {
         if (status === "loading") return;
@@ -435,38 +462,55 @@ export function useNotifications() {
         setError(null);
 
         try {
-            const response = await notificationsApi.list({}, session.accessToken);
+            const response: any = await notificationsApi.list({ page, limit }, session.accessToken);
             if (response && typeof response === "object") {
+                const parseItems = (respData: any) => {
+                    if ("items" in respData && Array.isArray(respData.items)) {
+                        const items = respData.items as Notification[];
+                        setData({
+                            items,
+                            unread_count: respData.unread_count ?? items.filter(n => !n.is_read).length,
+                            total: respData.total ?? items.length,
+                            total_pages: respData.total_pages ?? 1,
+                            page: respData.page ?? page,
+                            limit: respData.limit ?? limit,
+                        });
+                        return true;
+                    }
+                    return false;
+                };
+
                 if (Array.isArray(response)) {
-                    setData({ items: response as Notification[], unread_count: (response as Notification[]).filter(n => !n.is_read).length });
+                    const items = response as Notification[];
+                    setData({ items, unread_count: items.filter(n => !n.is_read).length, total: items.length, total_pages: 1, page: 1, limit });
+                } else if ("data" in response && response.data && typeof response.data === "object" && !Array.isArray(response.data)) {
+                    if (!parseItems(response.data)) {
+                        const items = response.data as Notification[];
+                        setData({ items, unread_count: items.filter(n => !n.is_read).length, total: items.length, total_pages: 1, page: 1, limit });
+                    }
                 } else if ("data" in response && Array.isArray(response.data)) {
                     const items = response.data as Notification[];
-                    setData({ items, unread_count: items.filter(n => !n.is_read).length });
-                } else if ("items" in response && Array.isArray(response.items)) {
-                    const items = (response as { items: Notification[] }).items;
-                    setData({ items, unread_count: items.filter(n => !n.is_read).length });
-                } else if ("notifications" in response && Array.isArray((response as any).notifications)) {
-                    const items = (response as any).notifications as Notification[];
-                    setData({ items, unread_count: (response as any).unread_count || items.filter(n => !n.is_read).length });
+                    setData({ items, unread_count: items.filter(n => !n.is_read).length, total: items.length, total_pages: 1, page: 1, limit });
+                } else {
+                    parseItems(response);
                 }
             }
         } catch (err) {
             console.error("Notifications fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, status]);
+    }, [session?.accessToken, status, page, limit]);
 
     useEffect(() => {
         if (status === "loading") return;
-        if (status === "authenticated" && session?.accessToken && !hasFetched.current) {
-            hasFetched.current = true;
+        if (session?.accessToken) {
             refetch();
         } else if (status === "unauthenticated") {
             setLoading(false);
         }
-    }, [status, session?.accessToken, refetch]);
+    }, [status, session?.accessToken, page, refetch]);
 
     return { data, loading, error, refetch };
 }
@@ -490,7 +534,7 @@ export function useDeleteKandang() {
                 await kandangApi.delete(id, session.accessToken);
                 return { success: true };
             } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to delete");
+                setError(parseError(err));
                 return { success: false };
             } finally {
                 setLoading(false);
@@ -582,7 +626,7 @@ export function useDeleteUser() {
                 await usersApi.delete(id, session.accessToken);
                 return { success: true };
             } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to delete");
+                setError(parseError(err));
                 return { success: false };
             } finally {
                 setLoading(false);
@@ -643,7 +687,7 @@ export function useCreatePeternak() {
                 const response = await usersApi.createPeternak(data, session.accessToken);
                 return { success: true, data: response as unknown as User };
             } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to create");
+                setError(parseError(err));
                 return { success: false };
             } finally {
                 setLoading(false);
@@ -735,7 +779,7 @@ export function useMarkNotificationAsRead() {
                 await notificationsApi.markAsRead(id, session.accessToken);
                 return { success: true };
             } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to mark as read");
+                setError(parseError(err));
                 return { success: false };
             } finally {
                 setLoading(false);
@@ -765,7 +809,7 @@ export function useMarkAllNotificationsAsRead() {
                 await notificationsApi.markAllAsRead(session.accessToken);
                 return { success: true };
             } catch (err) {
-                setError(err instanceof Error ? err.message : "Failed to mark all as read");
+                setError(parseError(err));
                 return { success: false };
             } finally {
                 setLoading(false);
@@ -816,7 +860,7 @@ export function useActivityLogs(params?: { page?: number; per_page?: number; act
             }
         } catch (err) {
             console.error("Activity logs fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
@@ -872,7 +916,7 @@ export function useMyActivityLogs(params?: { page?: number; per_page?: number })
             }
         } catch (err) {
             console.error("My activity logs fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
@@ -957,7 +1001,7 @@ export function useSensorDataStats(kandangId?: string, hours?: number) {
             }
         } catch (err) {
             console.error("Sensor stats fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch stats");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
@@ -1005,7 +1049,7 @@ export function useModelInfo() {
             }
         } catch (err) {
             console.error("Model info fetch error:", err);
-            setError(err instanceof Error ? err.message : "Failed to fetch model info");
+            setError(parseError(err));
         } finally {
             setLoading(false);
         }
@@ -1102,17 +1146,12 @@ export function useNotificationWebSocket(
 
                     const message = JSON.parse(event.data);
 
-                    // Backend sends: { type: "notification", data: { ... } }
-                    if (onNotificationRef.current) {
-                        if (message.type === "notification" && message.data) {
-                            onNotificationRef.current(message.data);
-                        } else {
-                            // Direct notification object
-                            onNotificationRef.current(message);
-                        }
+                    // Only handle notification messages, ignore sensor_data etc.
+                    if (message.type === "notification" && message.data && onNotificationRef.current) {
+                        onNotificationRef.current(message.data);
                     }
-                } catch (e) {
-                    console.error("WS message parse error:", e);
+                } catch {
+                    // Non-JSON messages are fine
                 }
             };
 
@@ -1133,8 +1172,8 @@ export function useNotificationWebSocket(
                 }
             };
 
-            ws.onerror = (err) => {
-                console.error("WS error:", err);
+            ws.onerror = () => {
+                // onerror is always followed by onclose which handles reconnection
             };
 
             wsRef.current = ws;

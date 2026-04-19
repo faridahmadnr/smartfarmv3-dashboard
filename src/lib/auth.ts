@@ -3,8 +3,10 @@ import Credentials from "next-auth/providers/credentials";
 import type { NextAuthConfig } from "next-auth";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX || "/api/v1";
 
 export const authConfig: NextAuthConfig = {
+    trustHost: true,
     providers: [
         Credentials({
             name: "credentials",
@@ -18,7 +20,7 @@ export const authConfig: NextAuthConfig = {
                 }
 
                 try {
-                    const res = await fetch(`${API_URL}/api/v1/auth/login`, {
+                    const res = await fetch(`${API_URL}${API_PREFIX}/auth/login`, {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
@@ -69,7 +71,7 @@ export const authConfig: NextAuthConfig = {
 
             // Try to refresh the token
             try {
-                const res = await fetch(`${API_URL}/api/v1/auth/refresh`, {
+                const res = await fetch(`${API_URL}${API_PREFIX}/auth/refresh`, {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
@@ -99,6 +101,7 @@ export const authConfig: NextAuthConfig = {
             session.user.pemilik_id = token.pemilik_id;
             session.accessToken = token.accessToken;
             session.refreshToken = token.refreshToken;
+            session.error = token.error;
             return session;
         },
     },

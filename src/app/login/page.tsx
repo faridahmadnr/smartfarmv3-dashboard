@@ -1,13 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-export default function LoginPage() {
+function LoginForm() {
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const sessionExpired = searchParams.get("reason") === "session_expired";
+
     const [username, setUsername] = useState("");
     const [password, setPassword] = useState("");
     const [error, setError] = useState("");
@@ -43,14 +47,23 @@ export default function LoginPage() {
             <div className="w-full max-w-md">
                 {/* Logo */}
                 <div className="text-center mb-8">
-                    <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-br from-green-500 to-green-600 mb-4">
-                        <svg className="w-9 h-9 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <h1 className="text-2xl font-bold text-gray-900">SmartFarm</h1>
+                    <Image
+                        src="/smartfarmv2-logo.png"
+                        alt="SmartFarm Logo"
+                        width={80}
+                        height={80}
+                        className="mx-auto mb-4 object-contain"
+                    />
+                    <h1 className="text-2xl font-bold text-gray-900">Broilabs</h1>
                     <p className="text-gray-500 mt-1">Masuk ke dashboard Anda</p>
                 </div>
+
+                {/* Session expired banner */}
+                {sessionExpired && (
+                    <div className="mb-4 px-4 py-3 bg-amber-50 border border-amber-200 rounded-xl text-sm text-amber-800">
+                        Sesi Anda telah berakhir. Silakan login kembali.
+                    </div>
+                )}
 
                 {/* Login Card */}
                 <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
@@ -96,9 +109,17 @@ export default function LoginPage() {
 
                 {/* Footer */}
                 <p className="text-center text-sm text-gray-400 mt-6">
-                    © 2026 SmartFarm. Sistem Monitoring Peternakan Cerdas.
+                    © 2026 Broilabs. Sistem Monitoring Peternakan Cerdas.
                 </p>
             </div>
         </div>
+    );
+}
+
+export default function LoginPage() {
+    return (
+        <Suspense>
+            <LoginForm />
+        </Suspense>
     );
 }

@@ -2,6 +2,7 @@ import { ApiResponse, PaginatedResponse } from "@/types";
 import { getSession } from "next-auth/react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+const API_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX || "/api/v1";
 
 interface FetchOptions extends RequestInit {
     token?: string;
@@ -18,6 +19,10 @@ async function fetchWithAuth<T>(
     // Get token from session if not provided
     if (!authToken && typeof window !== "undefined") {
         const session = await getSession();
+        // If session is in error state, abort silently — overlay will handle redirect
+        if (session?.error === "RefreshAccessTokenError") {
+            throw new Error("SESSION_EXPIRED");
+        }
         authToken = session?.accessToken;
     }
 
@@ -56,7 +61,7 @@ export const authApi = {
             access_token: string;
             refresh_token: string;
             expires_in: number;
-        }>("/api/v1/auth/login", {
+        }>("${API_PREFIX}/auth/login", {
             method: "POST",
             body: JSON.stringify({ username, password }),
         });
@@ -69,7 +74,15 @@ export const authApi = {
             username: string;
             full_name: string;
             role: string;
-        }>("/api/v1/auth/me", { token });
+        }>("${API_PREFIX}/auth/me", { token });
+    },
+
+    updateProfile: async (data: { full_name?: string; phone?: string }, token?: string) => {
+        return fetchWithAuth("${API_PREFIX}/auth/me", {
+            method: "PATCH",
+            body: JSON.stringify(data),
+            token,
+        });
     },
 
     changePassword: async (
@@ -78,7 +91,7 @@ export const authApi = {
         confirmPassword: string,
         token?: string
     ) => {
-        return fetchWithAuth("/api/v1/auth/change-password", {
+        return fetchWithAuth("${API_PREFIX}/auth/change-password", {
             method: "POST",
             body: JSON.stringify({
                 old_password: oldPassword,
@@ -90,7 +103,7 @@ export const authApi = {
     },
 
     logout: async (token?: string) => {
-        return fetchWithAuth("/api/v1/auth/logout", {
+        return fetchWithAuth("${API_PREFIX}/auth/logout", {
             method: "POST",
             token,
         });
@@ -116,11 +129,11 @@ export const usersApi = {
         if (params?.search) searchParams.set("search", params.search);
 
         const query = searchParams.toString();
-        return fetchWithAuth(`/api/v1/users${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/users${query ? `?${query}` : ""}`, { token });
     },
 
     get: async (id: string, token?: string) => {
-        return fetchWithAuth(`/api/v1/users/${id}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/users/${id}`, { token });
     },
 
     create: async (userData: {
@@ -132,7 +145,7 @@ export const usersApi = {
         role: string;
         pemilik_id?: string;
     }, token?: string) => {
-        return fetchWithAuth("/api/v1/users", {
+        return fetchWithAuth("${API_PREFIX}/users", {
             method: "POST",
             body: JSON.stringify(userData),
             token,
@@ -146,7 +159,7 @@ export const usersApi = {
         phone?: string;
         password: string;
     }, token?: string) => {
-        return fetchWithAuth("/api/v1/users/me/peternaks", {
+        return fetchWithAuth("${API_PREFIX}/users/me/peternaks", {
             method: "POST",
             body: JSON.stringify(peternakData),
             token,
@@ -161,7 +174,7 @@ export const usersApi = {
         is_active?: boolean;
         pemilik_id?: string;
     }, token?: string) => {
-        return fetchWithAuth(`/api/v1/users/${id}`, {
+        return fetchWithAuth(`${API_PREFIX}/users/${id}`, {
             method: "PUT",
             body: JSON.stringify(userData),
             token,
@@ -169,14 +182,14 @@ export const usersApi = {
     },
 
     delete: async (id: string, token?: string) => {
-        return fetchWithAuth(`/api/v1/users/${id}`, {
+        return fetchWithAuth(`${API_PREFIX}/users/${id}`, {
             method: "DELETE",
             token,
         });
     },
 
     getPeternaksByPemilik: async (pemilikId: string, token?: string) => {
-        return fetchWithAuth(`/api/v1/users/pemilik/${pemilikId}/peternaks`, { token });
+        return fetchWithAuth(`${API_PREFIX}/users/pemilik/${pemilikId}/peternaks`, { token });
     },
 };
 
@@ -195,11 +208,11 @@ export const kandangApi = {
         if (params?.is_active !== undefined) searchParams.set("is_active", params.is_active.toString());
 
         const query = searchParams.toString();
-        return fetchWithAuth(`/api/v1/kandangs${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/kandangs${query ? `?${query}` : ""}`, { token });
     },
 
     get: async (id: string, token?: string) => {
-        return fetchWithAuth(`/api/v1/kandangs/${id}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, { token });
     },
 
     create: async (kandangData: {
@@ -210,7 +223,7 @@ export const kandangApi = {
         deskripsi?: string;
         pemilik_id: string;
     }, token?: string) => {
-        return fetchWithAuth("/api/v1/kandangs", {
+        return fetchWithAuth("${API_PREFIX}/kandangs", {
             method: "POST",
             body: JSON.stringify(kandangData),
             token,
@@ -224,7 +237,7 @@ export const kandangApi = {
         deskripsi?: string;
         is_active?: boolean;
     }, token?: string) => {
-        return fetchWithAuth(`/api/v1/kandangs/${id}`, {
+        return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, {
             method: "PUT",
             body: JSON.stringify(kandangData),
             token,
@@ -232,7 +245,7 @@ export const kandangApi = {
     },
 
     delete: async (id: string, token?: string) => {
-        return fetchWithAuth(`/api/v1/kandangs/${id}`, {
+        return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, {
             method: "DELETE",
             token,
         });
@@ -260,11 +273,11 @@ export const sensorDataApi = {
         if (params?.end_date) searchParams.set("end_time", params.end_date);
 
         const query = searchParams.toString();
-        return fetchWithAuth(`/api/v1/sensor-data/kandang/${params.kandang_id}${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/sensor-data/kandang/${params.kandang_id}${query ? `?${query}` : ""}`, { token });
     },
 
     get: async (id: string, token?: string) => {
-        return fetchWithAuth(`/api/v1/sensor-data/${id}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/sensor-data/${id}`, { token });
     },
 
     create: async (sensorData: {
@@ -280,7 +293,7 @@ export const sensorDataApi = {
         populasi?: number;
         death?: number;
     }, token?: string) => {
-        return fetchWithAuth("/api/v1/sensor-data", {
+        return fetchWithAuth("${API_PREFIX}/sensor-data", {
             method: "POST",
             body: JSON.stringify(sensorData),
             token,
@@ -294,7 +307,7 @@ export const sensorDataApi = {
         populasi?: number;
         death?: number;
     }, token?: string) => {
-        return fetchWithAuth(`/api/v1/sensor-data/${id}/manual`, {
+        return fetchWithAuth(`${API_PREFIX}/sensor-data/${id}/manual`, {
             method: "PUT",
             body: JSON.stringify(data),
             token,
@@ -305,14 +318,14 @@ export const sensorDataApi = {
         const searchParams = new URLSearchParams();
         if (limit) searchParams.set("limit", limit.toString());
         const query = searchParams.toString();
-        return fetchWithAuth(`/api/v1/sensor-data/kandang/${kandangId}/latest${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/sensor-data/kandang/${kandangId}/latest${query ? `?${query}` : ""}`, { token });
     },
 
     getStats: async (kandangId: string, hours?: number, token?: string) => {
         const searchParams = new URLSearchParams();
         if (hours) searchParams.set("hours", hours.toString());
         const query = searchParams.toString();
-        return fetchWithAuth(`/api/v1/sensor-data/kandang/${kandangId}/stats${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/sensor-data/kandang/${kandangId}/stats${query ? `?${query}` : ""}`, { token });
     },
 };
 
@@ -325,7 +338,7 @@ export const predictionsApi = {
         amoniak: number;
         hari_ke: number;
     }, token?: string) => {
-        return fetchWithAuth("/api/v1/predictions/classify", {
+        return fetchWithAuth("${API_PREFIX}/predictions/classify", {
             method: "POST",
             body: JSON.stringify(data),
             token,
@@ -335,7 +348,7 @@ export const predictionsApi = {
     forecast: async (data: {
         kandang_id: string;
     }, token?: string) => {
-        return fetchWithAuth("/api/v1/predictions/forecast", {
+        return fetchWithAuth("${API_PREFIX}/predictions/forecast", {
             method: "POST",
             body: JSON.stringify(data),
             token,
@@ -343,14 +356,18 @@ export const predictionsApi = {
     },
 
     getModels: async (token?: string) => {
-        return fetchWithAuth("/api/v1/predictions/models", { token });
+        return fetchWithAuth("${API_PREFIX}/predictions/models", { token });
     },
 
     reloadModels: async (token?: string) => {
-        return fetchWithAuth("/api/v1/predictions/load-models", {
+        return fetchWithAuth("${API_PREFIX}/predictions/load-models", {
             method: "POST",
             token,
         });
+    },
+
+    getHistory: async (kandangId: string, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/predictions/history?kandang_id=${kandangId}`, { token });
     },
 };
 
@@ -359,28 +376,30 @@ export const notificationsApi = {
     list: async (params?: {
         unread_only?: boolean;
         limit?: number;
+        page?: number;
     }, token?: string) => {
         const searchParams = new URLSearchParams();
         if (params?.unread_only) searchParams.set("unread_only", "true");
         if (params?.limit) searchParams.set("limit", params.limit.toString());
+        if (params?.page) searchParams.set("page", params.page.toString());
 
         const query = searchParams.toString();
-        return fetchWithAuth(`/api/v1/notifications${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/notifications${query ? `?${query}` : ""}`, { token });
     },
 
     getUnreadCount: async (token?: string) => {
-        return fetchWithAuth("/api/v1/notifications/unread-count", { token });
+        return fetchWithAuth("${API_PREFIX}/notifications/unread-count", { token });
     },
 
     markAsRead: async (id: string, token?: string) => {
-        return fetchWithAuth(`/api/v1/notifications/${id}/read`, {
+        return fetchWithAuth(`${API_PREFIX}/notifications/${id}/read`, {
             method: "PUT",
             token,
         });
     },
 
     markAllAsRead: async (token?: string) => {
-        return fetchWithAuth("/api/v1/notifications/read-all", {
+        return fetchWithAuth("${API_PREFIX}/notifications/read-all", {
             method: "PUT",
             token,
         });
@@ -410,7 +429,7 @@ export const activityLogsApi = {
         if (params?.end_date) searchParams.set("end_date", params.end_date);
 
         const query = searchParams.toString();
-        return fetchWithAuth(`/api/v1/activity-logs${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/activity-logs${query ? `?${query}` : ""}`, { token });
     },
 
     getMyLogs: async (params?: {
@@ -422,12 +441,12 @@ export const activityLogsApi = {
         if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
 
         const query = searchParams.toString();
-        return fetchWithAuth(`/api/v1/activity-logs/me${query ? `?${query}` : ""}`, { token });
+        return fetchWithAuth(`${API_PREFIX}/activity-logs/me${query ? `?${query}` : ""}`, { token });
     },
 };
 
 // WebSocket URL helper
 export const getNotificationWsUrl = (token: string) => {
     const wsBase = API_URL.replace(/^http/, "ws");
-    return `${wsBase}/api/v1/notifications/ws?token=${token}`;
+    return `${wsBase}${API_PREFIX}/notifications/ws?token=${token}`;
 };

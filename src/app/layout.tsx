@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "SmartFarm Dashboard",
+  title: "Broilabs Dashboard",
   description: "Sistem monitoring dan manajemen peternakan ayam cerdas",
 };
 

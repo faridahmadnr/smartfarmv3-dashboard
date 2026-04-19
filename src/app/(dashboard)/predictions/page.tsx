@@ -1,486 +1,617 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Select } from "@/components/ui/input";
-import { useKandangs, Kandang, useModelInfo, useReloadModels } from "@/hooks/useApi";
+import {
+    RefreshCw,
+    ShieldCheck, TrendingUp, HeartCrack,
+    CheckCircle2, AlertTriangle, XCircle,
+    Activity, Cpu, ChevronDown, ChevronUp,
+    RotateCcw, Info,
+    ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
+} from "lucide-react";
+import { Card, CardContent } from "@/components/ui/card";
+import { useKandangs, useModelInfo, useReloadModels } from "@/hooks/useApi";
 import { predictionsApi } from "@/lib/api";
 
-interface PredictionResult {
-    kandang_id: string;
-    kandang_nama: string;
-    classification?: string;
-    confidence?: number;
-    predicted_deaths?: number;
-    forecast?: number[];
-    timestamp: string;
+// ─── Types ────────────────────────────────────────────────────────────────────
+
+interface PredictionRecord {
+    id: string;
+    type: "classification" | "forecasting";
+    prediction: string | null;
+    confidence: number | null;
+    predicted_death: number | null;
+    raw_prediction: number | null;
+    input_data: Record<string, any> | null;
+    created_at: string;
 }
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function formatTime(ts: string) {
+    try {
+        return new Date(ts).toLocaleString("id-ID", {
+            day: "2-digit", month: "short", year: "numeric",
+            hour: "2-digit", minute: "2-digit",
+        });
+    } catch { return ts; }
+}
+
+function timeAgo(ts: string) {
+    const diff = Date.now() - new Date(ts).getTime();
+    const m = Math.floor(diff / 60000);
+    if (m < 1) return "baru saja";
+    if (m < 60) return `${m} menit lalu`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} jam lalu`;
+    return `${Math.floor(h / 24)} hari lalu`;
+}
+
+function ConfidenceBar({ value }: { value: number }) {
+    const pct = Math.round(value * 100);
+    const color = pct >= 90 ? "bg-green-500" : pct >= 70 ? "bg-yellow-400" : "bg-red-400";
+    return (
+        <div className="flex items-center gap-2">
+            <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
+            </div>
+            <span className="text-xs font-semibold tabular-nums text-gray-700">{pct}%</span>
+        </div>
+    );
+}
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50];
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function PredictionsPage() {
     const { data: session, status } = useSession();
-    const { data: kandangData, loading: loadingKandang } = useKandangs();
-    const { data: modelInfo, loading: loadingModels } = useModelInfo();
+    const { data: kandangData } = useKandangs();
+    const { data: modelInfo } = useModelInfo();
     const { mutate: reloadModels, loading: reloading } = useReloadModels();
 
-    const [selectedKandang, setSelectedKandang] = useState("");
-    const [predictions, setPredictions] = useState<PredictionResult[]>([]);
-    const [loadingClassify, setLoadingClassify] = useState(false);
-    const [loadingForecast, setLoadingForecast] = useState(false);
-    const [error, setError] = useState("");
+    const [records, setRecords] = useState<PredictionRecord[]>([]);
+    const [loadingHistory, setLoadingHistory] = useState(false);
     const [reloadSuccess, setReloadSuccess] = useState(false);
+    const [activeTab, setActiveTab] = useState<"classification" | "forecasting">("classification");
+    const [showModelInfo, setShowModelInfo] = useState(false);
+
+    // Pagination state
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyPageSize, setHistoryPageSize] = useState(10);
 
     const isAdmin = session?.user?.role === "admin";
+    const kandang = kandangData?.items?.[0];
 
-    const handleReloadModels = async () => {
-        setReloadSuccess(false);
+    // Reset page on tab change
+    useEffect(() => { setHistoryPage(1); }, [activeTab]);
+
+    // ── Fetch ────────────────────────────────────────────────────────────────
+    const loadHistory = useCallback(async () => {
+        if (!session?.accessToken || !kandang?.id) return;
+        setLoadingHistory(true);
+        try {
+            const res: any = await predictionsApi.getHistory(kandang.id, session.accessToken);
+            let items: PredictionRecord[] = [];
+            if (Array.isArray(res)) items = res;
+            else if (Array.isArray(res?.data)) items = res.data;
+            else if (Array.isArray(res?.data?.data)) items = res.data.data;
+            setRecords(items);
+        } catch (err) {
+            console.error("Failed to load prediction history:", err);
+        } finally {
+            setLoadingHistory(false);
+        }
+    }, [session?.accessToken, kandang?.id]);
+
+    useEffect(() => {
+        if (status === "authenticated" && session?.accessToken && kandang?.id) {
+            loadHistory();
+        }
+    }, [status, session?.accessToken, kandang?.id, loadHistory]);
+
+    const handleReload = async () => {
         const result = await reloadModels();
         if (result.success) {
             setReloadSuccess(true);
             setTimeout(() => setReloadSuccess(false), 3000);
-        } else {
-            setError(result.error || "Gagal reload models");
         }
     };
 
-    if (status === "loading" || loadingKandang) {
+    // ── Derived ──────────────────────────────────────────────────────────────
+    const classifyRecords = useMemo(() => records.filter(r => r.type === "classification"), [records]);
+    const forecastRecords = useMemo(() => records.filter(r => r.type === "forecasting"), [records]);
+
+    const latestClassify = classifyRecords[0] ?? null;
+    const latestForecast = forecastRecords[0] ?? null;
+
+    const normalCount   = classifyRecords.filter(r => r.prediction === "Normal").length;
+    const abnormalCount = classifyRecords.filter(r => r.prediction === "Abnormal").length;
+    const riskCount     = forecastRecords.filter(r => (r.predicted_death ?? 0) > 0).length;
+    const safeCount     = forecastRecords.filter(r => (r.predicted_death ?? 0) === 0).length;
+
+    const tabRecords   = activeTab === "classification" ? classifyRecords : forecastRecords;
+    const totalPages   = Math.max(1, Math.ceil(tabRecords.length / historyPageSize));
+    const pagedRecords = tabRecords.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
+
+    const classModel    = (modelInfo as any)?.data?.classification_model ?? (modelInfo as any)?.classification_model;
+    const forecastModel = (modelInfo as any)?.data?.forecasting_model    ?? (modelInfo as any)?.forecasting_model;
+
+    if (status === "loading") {
         return (
-            <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+            <div className="flex justify-center py-16">
+                <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-green-600" />
             </div>
         );
     }
 
-    const kandangs = kandangData?.items || [];
-
-    const runClassification = async () => {
-        if (!selectedKandang) {
-            setError("Pilih kandang terlebih dahulu");
-            return;
-        }
-
-        const kandang = kandangs.find(k => k.id === selectedKandang);
-        if (!kandang?.latest_sensor) {
-            setError("Kandang tidak memiliki data sensor terbaru");
-            return;
-        }
-
-        setLoadingClassify(true);
-        setError("");
-
-        try {
-            const response = await predictionsApi.classify({
-                kandang_id: selectedKandang,
-                suhu: kandang.latest_sensor.suhu,
-                kelembaban: kandang.latest_sensor.kelembaban,
-                amoniak: kandang.latest_sensor.amoniak,
-                hari_ke: 1, // Default, should be from sensor data
-            }, session?.accessToken as string);
-
-            const result: PredictionResult = {
-                kandang_id: selectedKandang,
-                kandang_nama: kandang.nama,
-                classification: (response as any).classification || (response as any).result?.classification,
-                confidence: (response as any).confidence || (response as any).result?.confidence,
-                timestamp: new Date().toISOString(),
-            };
-
-            setPredictions(prev => [result, ...prev]);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Gagal menjalankan klasifikasi");
-        } finally {
-            setLoadingClassify(false);
-        }
-    };
-
-    const runForecast = async () => {
-        if (!selectedKandang) {
-            setError("Pilih kandang terlebih dahulu");
-            return;
-        }
-
-        const kandang = kandangs.find(k => k.id === selectedKandang);
-
-        setLoadingForecast(true);
-        setError("");
-
-        try {
-            const response = await predictionsApi.forecast({
-                kandang_id: selectedKandang,
-            }, session?.accessToken as string);
-
-            const result: PredictionResult = {
-                kandang_id: selectedKandang,
-                kandang_nama: kandang?.nama || "Unknown",
-                predicted_deaths: (response as any).predicted_deaths || (response as any).result?.predicted_deaths,
-                forecast: (response as any).forecast || (response as any).result?.forecast,
-                timestamp: new Date().toISOString(),
-            };
-
-            setPredictions(prev => [result, ...prev]);
-        } catch (err) {
-            setError(err instanceof Error ? err.message : "Gagal menjalankan forecasting");
-        } finally {
-            setLoadingForecast(false);
-        }
-    };
-
-    const formatTime = (timestamp: string) => {
-        return new Date(timestamp).toLocaleString("id-ID");
-    };
-
     return (
         <div className="space-y-6">
-            {/* Page Header */}
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Prediksi ML</h1>
-                <p className="text-gray-500 mt-1">
-                    Klasifikasi kondisi dan forecasting mortalitas
-                </p>
+
+            {/* ── Header ──────────────────────────────────────────────────── */}
+            <div className="flex items-center justify-between gap-4">
+                <h1 className="text-xl font-bold text-gray-900">Prediksi Machine Learning</h1>
+                <button
+                    onClick={loadHistory}
+                    disabled={loadingHistory}
+                    className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
+                >
+                    <RefreshCw className={`w-3.5 h-3.5 ${loadingHistory ? "animate-spin" : ""}`} />
+                    Refresh
+                </button>
             </div>
 
-            {/* Model Info */}
+            {/* ── Stats ───────────────────────────────────────────────────── */}
+            <div className="space-y-3">
+                {/* Klasifikasi row */}
+                <div>
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <ShieldCheck className="w-3 h-3" /> Klasifikasi
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                        {[
+                            { label: "Total", value: classifyRecords.length, icon: <ShieldCheck className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
+                            { label: "Normal", value: normalCount, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-green-600 bg-green-50" },
+                            { label: "Abnormal", value: abnormalCount, icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-500 bg-red-50" },
+                        ].map(s => (
+                            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-gray-400">{s.label}</p>
+                                    <div className={`p-1.5 rounded-lg ${s.color}`}>{s.icon}</div>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+
+                {/* Forecasting row */}
+                <div>
+                    <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                        <TrendingUp className="w-3 h-3" /> Forecasting
+                    </p>
+                    <div className="grid grid-cols-3 gap-3">
+                        {[
+                            { label: "Total", value: forecastRecords.length, icon: <TrendingUp className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
+                            { label: "Prediksi Aman", value: safeCount, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-green-600 bg-green-50" },
+                            { label: "Ada Risiko", value: riskCount, icon: <HeartCrack className="w-4 h-4" />, color: "text-orange-500 bg-orange-50" },
+                        ].map(s => (
+                            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                                <div className="flex items-center justify-between mb-2">
+                                    <p className="text-xs text-gray-400">{s.label}</p>
+                                    <div className={`p-1.5 rounded-lg ${s.color}`}>{s.icon}</div>
+                                </div>
+                                <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Latest Results ───────────────────────────────────────────── */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <Card>
-                    <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 rounded-xl bg-blue-50 text-blue-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                </svg>
+                {/* Latest Classification */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="h-1 w-full bg-indigo-300" />
+                    <div className="p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-slate-50 rounded-lg">
+                                    <ShieldCheck className="w-4 h-4 text-slate-500" />
+                                </div>
+                                <span className="text-sm font-semibold text-gray-700">Klasifikasi Terkini</span>
                             </div>
-                            <div>
-                                <CardTitle>Classification Model</CardTitle>
-                                <p className="text-sm text-gray-500">
-                                    {modelInfo?.classification_model?.type || "Loading..."}
-                                </p>
-                            </div>
-                            {modelInfo?.classification_model?.status && (
-                                <Badge variant="success" className="ml-auto">
-                                    {modelInfo.classification_model.status}
-                                </Badge>
+                            {latestClassify && (
+                                <span className="text-[11px] text-gray-400">{timeAgo(latestClassify.created_at)}</span>
                             )}
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <p className="text-sm text-gray-500">Output</p>
-                                <p className="text-lg font-bold text-gray-900">
-                                    {modelInfo?.classification_model?.output_classes?.join(" / ") || "Normal / Abnormal"}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Input Features</p>
-                                <p className="text-sm text-gray-700">
-                                    {modelInfo?.classification_model?.input_features?.join(", ") || "Loading..."}
-                                </p>
-                            </div>
-                            {modelInfo?.classification_model?.metrics && (
-                                <>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Accuracy</p>
-                                        <p className="text-lg font-bold text-green-600">
-                                            {modelInfo.classification_model.metrics.accuracy || "-"}
-                                        </p>
-                                    </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">F1 Score</p>
-                                        <p className="text-lg font-bold text-blue-600">
-                                            {modelInfo.classification_model.metrics.f1_score || "-"}
-                                        </p>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
 
-                <Card>
-                    <CardHeader className="pb-2">
-                        <div className="flex items-center gap-3">
-                            <div className="p-3 rounded-xl bg-purple-50 text-purple-600">
-                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-                                </svg>
+                        {latestClassify ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3">
+                                    {latestClassify.prediction === "Normal"
+                                        ? <CheckCircle2 className="w-8 h-8 text-green-500 flex-shrink-0" />
+                                        : <XCircle className="w-8 h-8 text-red-500 flex-shrink-0" />
+                                    }
+                                    <div>
+                                        <p className={`text-2xl font-bold ${latestClassify.prediction === "Normal" ? "text-green-600" : "text-red-600"}`}>
+                                            {latestClassify.prediction ?? "—"}
+                                        </p>
+                                        <p className="text-xs text-gray-400">{formatTime(latestClassify.created_at)}</p>
+                                    </div>
+                                </div>
+                                {latestClassify.confidence !== null && (
+                                    <div className="space-y-1">
+                                        <p className="text-xs text-gray-400">Confidence</p>
+                                        <ConfidenceBar value={latestClassify.confidence} />
+                                    </div>
+                                )}
+                                {latestClassify.input_data && (
+                                    <div className="flex flex-wrap gap-2 pt-1">
+                                        {latestClassify.input_data.suhu !== undefined && (
+                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Suhu {latestClassify.input_data.suhu}°C</span>
+                                        )}
+                                        {latestClassify.input_data.kelembaban !== undefined && (
+                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Hum {latestClassify.input_data.kelembaban}%</span>
+                                        )}
+                                        {latestClassify.input_data.amoniak !== undefined && (
+                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">NH₃ {Number(latestClassify.input_data.amoniak).toFixed(3)}</span>
+                                        )}
+                                        {latestClassify.input_data.hari_ke !== undefined && (
+                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">H-{latestClassify.input_data.hari_ke}</span>
+                                        )}
+                                    </div>
+                                )}
                             </div>
-                            <div>
-                                <CardTitle>Forecasting Model</CardTitle>
-                                <p className="text-sm text-gray-500">
-                                    {modelInfo?.forecasting_model?.type || "Loading..."}
-                                </p>
+                        ) : (
+                            <div className="py-4 text-center">
+                                <p className="text-sm text-gray-400">Belum ada data klasifikasi</p>
                             </div>
-                            {modelInfo?.forecasting_model?.status && (
-                                <Badge variant="success" className="ml-auto">
-                                    {modelInfo.forecasting_model.status}
-                                </Badge>
+                        )}
+                    </div>
+                </div>
+
+                {/* Latest Forecasting */}
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                    <div className="h-1 w-full bg-orange-300" />
+                    <div className="p-5">
+                        <div className="flex items-center justify-between mb-4">
+                            <div className="flex items-center gap-2">
+                                <div className="p-1.5 bg-slate-50 rounded-lg">
+                                    <TrendingUp className="w-4 h-4 text-slate-500" />
+                                </div>
+                                <span className="text-sm font-semibold text-gray-700">Forecasting Terkini</span>
+                            </div>
+                            {latestForecast && (
+                                <span className="text-[11px] text-gray-400">{timeAgo(latestForecast.created_at)}</span>
                             )}
                         </div>
-                    </CardHeader>
-                    <CardContent>
-                        <div className="grid grid-cols-2 gap-4 mt-4">
-                            <div>
-                                <p className="text-sm text-gray-500">Output</p>
-                                <p className="text-lg font-bold text-gray-900">
-                                    {modelInfo?.forecasting_model?.output || "Death Forecast"}
-                                </p>
-                            </div>
-                            <div>
-                                <p className="text-sm text-gray-500">Window Size</p>
-                                <p className="text-sm text-gray-700">
-                                    {modelInfo?.forecasting_model?.window_size || "Loading..."}
-                                </p>
-                            </div>
-                            {modelInfo?.forecasting_model?.metrics && (
-                                <>
+
+                        {latestForecast ? (
+                            <div className="space-y-3">
+                                <div className="flex items-center gap-3">
+                                    {(latestForecast.predicted_death ?? 0) > 0
+                                        ? <HeartCrack className="w-8 h-8 text-red-500 flex-shrink-0" />
+                                        : <CheckCircle2 className="w-8 h-8 text-green-500 flex-shrink-0" />
+                                    }
                                     <div>
-                                        <p className="text-sm text-gray-500">RMSE</p>
-                                        <p className="text-lg font-bold text-green-600">
-                                            {modelInfo.forecasting_model.metrics.rmse || "-"}
+                                        <p className={`text-2xl font-bold ${(latestForecast.predicted_death ?? 0) > 0 ? "text-red-600" : "text-green-600"}`}>
+                                            {(latestForecast.predicted_death ?? 0) > 0 ? `${latestForecast.predicted_death} kematian` : "Aman"}
                                         </p>
+                                        <p className="text-xs text-gray-400">{formatTime(latestForecast.created_at)}</p>
                                     </div>
-                                    <div>
-                                        <p className="text-sm text-gray-500">Pearson</p>
-                                        <p className="text-lg font-bold text-blue-600">
-                                            {modelInfo.forecasting_model.metrics.pearson || "-"}
-                                        </p>
-                                    </div>
-                                </>
-                            )}
-                        </div>
-                    </CardContent>
-                </Card>
+                                </div>
+                                <div className="flex flex-wrap gap-2 pt-1">
+                                    {latestForecast.raw_prediction !== null && (
+                                        <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">
+                                            Raw: {Number(latestForecast.raw_prediction).toFixed(4)}
+                                        </span>
+                                    )}
+                                    <span className={`text-[11px] rounded-lg px-2 py-0.5 font-medium border ${(latestForecast.predicted_death ?? 0) > 0 ? "bg-red-50 text-red-600 border-red-100" : "bg-green-50 text-green-700 border-green-100"}`}>
+                                        {(latestForecast.predicted_death ?? 0) > 0 ? "Ada Risiko" : "Tidak Ada Risiko"}
+                                    </span>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="py-4 text-center">
+                                <p className="text-sm text-gray-400">Belum ada data forecasting</p>
+                            </div>
+                        )}
+                    </div>
+                </div>
             </div>
 
-            {/* Admin: Reload Models */}
-            {isAdmin && (
-                <Card>
-                    <CardContent className="p-4">
-                        <div className="flex items-center justify-between">
-                            <div>
-                                <p className="text-sm font-medium text-gray-700">Admin: Manage ML Models</p>
-                                <p className="text-xs text-gray-500">Reload model setelah update file model</p>
-                            </div>
-                            <div className="flex items-center gap-3">
-                                {reloadSuccess && (
-                                    <span className="text-sm text-green-600">✅ Models berhasil di-reload!</span>
-                                )}
-                                <Button
-                                    variant="secondary"
-                                    onClick={handleReloadModels}
-                                    disabled={reloading}
-                                >
-                                    {reloading ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-600 mr-2"></div>
-                                            Reloading...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                            </svg>
-                                            Reload Models
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Run Prediction */}
+            {/* ── History ─────────────────────────────────────────────────── */}
             <Card>
-                <CardHeader>
-                    <CardTitle>Jalankan Prediksi</CardTitle>
-                </CardHeader>
-                <CardContent>
-                    {error && (
-                        <div className="p-3 mb-4 bg-red-50 border border-red-200 rounded-lg">
-                            <p className="text-red-700 text-sm">{error}</p>
-                        </div>
-                    )}
+                {/* Tabs */}
+                <div className="flex items-center justify-between gap-4 px-5 pt-4 pb-0">
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                        <button
+                            onClick={() => setActiveTab("classification")}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === "classification" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+                        >
+                            <ShieldCheck className="w-3.5 h-3.5" />
+                            Klasifikasi
+                            <span className="text-[10px] text-gray-400">{classifyRecords.length}</span>
+                        </button>
+                        <button
+                            onClick={() => setActiveTab("forecasting")}
+                            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === "forecasting" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
+                        >
+                            <TrendingUp className="w-3.5 h-3.5" />
+                            Forecasting
+                            <span className="text-[10px] text-gray-400">{forecastRecords.length}</span>
+                        </button>
+                    </div>
+                </div>
 
-                    {kandangs.length === 0 ? (
-                        <div className="py-8 text-center text-gray-500">
-                            Tidak ada kandang tersedia. Tambahkan kandang terlebih dahulu.
+                <CardContent className="p-0 mt-4">
+                    {loadingHistory ? (
+                        <div className="py-12 flex justify-center">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600" />
                         </div>
-                    ) : (
-                        <div className="flex flex-col md:flex-row gap-4">
-                            <div className="flex-1">
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Pilih Kandang</label>
-                                <Select
-                                    value={selectedKandang}
-                                    onChange={(e) => setSelectedKandang(e.target.value)}
-                                >
-                                    <option value="">-- Pilih Kandang --</option>
-                                    {kandangs.map((k: Kandang) => (
-                                        <option key={k.id} value={k.id}>
-                                            {k.nama} {k.latest_sensor ? `(${k.latest_sensor.suhu}°C)` : "(No sensor data)"}
-                                        </option>
-                                    ))}
-                                </Select>
+                    ) : tabRecords.length === 0 ? (
+                        <div className="py-14 text-center">
+                            <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-50 flex items-center justify-center">
+                                <ShieldCheck className="w-6 h-6 text-gray-300" />
                             </div>
-                            <div className="flex items-end gap-2">
-                                <Button
-                                    onClick={runClassification}
-                                    disabled={loadingClassify || !selectedKandang}
-                                >
-                                    {loadingClassify ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                                            Processing...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                            </svg>
-                                            Run Classification
-                                        </>
-                                    )}
-                                </Button>
-                                <Button
-                                    variant="secondary"
-                                    onClick={runForecast}
-                                    disabled={loadingForecast || !selectedKandang}
-                                >
-                                    {loadingForecast ? (
-                                        <>
-                                            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-gray-700 mr-2"></div>
-                                            Processing...
-                                        </>
-                                    ) : (
-                                        <>
-                                            <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
-                                            </svg>
-                                            Run Forecast
-                                        </>
-                                    )}
-                                </Button>
-                            </div>
+                            <p className="text-sm text-gray-400">Belum ada data {activeTab === "classification" ? "klasifikasi" : "forecasting"}</p>
+                            <p className="text-xs text-gray-300 mt-1">Prediksi otomatis berjalan saat IoT mengirim data</p>
                         </div>
-                    )}
-                </CardContent>
-            </Card>
-
-            {/* Results */}
-            {predictions.length > 0 && (
-                <Card>
-                    <CardHeader>
-                        <div className="flex items-center justify-between">
-                            <CardTitle>Hasil Prediksi</CardTitle>
-                            <Button
-                                variant="ghost"
-                                onClick={() => setPredictions([])}
-                            >
-                                Clear All
-                            </Button>
-                        </div>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="overflow-x-auto">
-                            <table className="w-full">
-                                <thead>
-                                    <tr className="border-b border-gray-200">
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Kandang</th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Type</th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Result</th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Confidence / Deaths</th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Time</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {predictions.map((pred, idx) => (
-                                        <tr key={idx} className="border-b border-gray-100 hover:bg-gray-50">
-                                            <td className="py-4 px-6">
-                                                <span className="text-sm font-medium text-gray-900">{pred.kandang_nama}</span>
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                <Badge variant={pred.classification ? "info" : "default"}>
-                                                    {pred.classification ? "Classification" : "Forecast"}
-                                                </Badge>
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                {pred.classification ? (
-                                                    <Badge
-                                                        variant={
-                                                            pred.classification === "Normal" ? "success" : "danger"
-                                                        }
-                                                    >
-                                                        {pred.classification}
-                                                    </Badge>
-                                                ) : (
-                                                    <span className="text-sm text-gray-700">
-                                                        Predicted Deaths: <strong className="text-red-600">{pred.predicted_deaths ?? "N/A"}</strong>
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                {pred.confidence !== undefined && (
-                                                    <div className="flex items-center gap-2">
-                                                        <div className="w-20 h-2 bg-gray-200 rounded-full overflow-hidden">
-                                                            <div
-                                                                className="h-full bg-green-500 rounded-full"
-                                                                style={{ width: `${pred.confidence * 100}%` }}
-                                                            />
-                                                        </div>
-                                                        <span className="text-sm text-gray-600">{(pred.confidence * 100).toFixed(1)}%</span>
-                                                    </div>
-                                                )}
-                                                {pred.predicted_deaths !== undefined && !pred.classification && (
-                                                    <span className={`text-lg font-bold ${pred.predicted_deaths > 0 ? "text-red-600" : "text-green-600"}`}>
-                                                        {pred.predicted_deaths}
-                                                    </span>
-                                                )}
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                <span className="text-sm text-gray-500">{formatTime(pred.timestamp)}</span>
-                                            </td>
+                    ) : activeTab === "classification" ? (
+                        <>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="bg-gray-50/80">
+                                            {["Waktu", "Hasil", "Confidence", "Suhu", "Kelembaban", "NH₃ (ppm)", "Pakan (g)", "Minum (ml)", "Bobot (g)", "Populasi", "Luas (m²)", "Hari Ke-"].map(h => (
+                                                <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
+                                            ))}
                                         </tr>
-                                    ))}
-                                </tbody>
-                            </table>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {pagedRecords.map((r) => {
+                                            const inp = r.input_data ?? {};
+                                            const isAbn = r.prediction === "Abnormal";
+                                            return (
+                                                <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
+                                                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{formatTime(r.created_at)}</td>
+                                                    <td className="py-3 px-4">
+                                                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${isAbn ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}>
+                                                            {isAbn ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                                                            {r.prediction ?? "—"}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4 w-36">
+                                                        {r.confidence !== null ? <ConfidenceBar value={r.confidence} /> : <span className="text-xs text-gray-300">—</span>}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.suhu ?? inp["Suhu"] ?? "—"}{inp.suhu !== undefined || inp["Suhu"] !== undefined ? "°C" : ""}</td>
+                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.kelembaban ?? inp["Kelembaban"] !== undefined ? `${inp.kelembaban ?? inp["Kelembaban"]}%` : "—"}</td>
+                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">
+                                                        {inp.amoniak !== undefined ? Number(inp.amoniak).toFixed(3)
+                                                            : inp["Amoniak"] !== undefined ? Number(inp["Amoniak"]).toFixed(3) : "—"}
+                                                    </td>
+                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.pakan ?? inp["Pakan"] ?? "—"}</td>
+                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.minum ?? inp["Minum"] ?? "—"}</td>
+                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.bobot ?? inp["Bobot"] ?? "—"}</td>
+                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.populasi ?? inp["Populasi"] ?? "—"}</td>
+                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.luas_kandang ?? inp["Luas Kandang"] ?? "—"}</td>
+                                                    <td className="py-3 px-4 text-gray-500">{inp.hari_ke ?? inp["Hari Ke-"] !== undefined ? `H-${inp.hari_ke ?? inp["Hari Ke-"]}` : "—"}</td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    ) : (
+                        <>
+                            <div className="overflow-x-auto">
+                                <table className="w-full text-sm">
+                                    <thead>
+                                        <tr className="bg-gray-50/80">
+                                            {["Waktu", "Prediksi Kematian", "Raw Value", "Status Risiko", "Input Data Points"].map(h => (
+                                                <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody className="divide-y divide-gray-50">
+                                        {pagedRecords.map((r) => {
+                                            const hasRisk = (r.predicted_death ?? 0) > 0;
+                                            const history: any[] = r.input_data?.sensor_history ?? [];
+                                            return (
+                                                <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
+                                                    <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{formatTime(r.created_at)}</td>
+                                                    <td className="py-3 px-4">
+                                                        <span className={`text-lg font-bold ${hasRisk ? "text-red-600" : "text-green-600"}`}>
+                                                            {r.predicted_death ?? 0}
+                                                        </span>
+                                                        <span className="text-xs text-gray-400 ml-1">ekor</span>
+                                                    </td>
+                                                    <td className="py-3 px-4 text-xs text-gray-500 tabular-nums">
+                                                        {r.raw_prediction !== null ? Number(r.raw_prediction).toFixed(4) : "—"}
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${hasRisk ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}>
+                                                            {hasRisk ? <><HeartCrack className="w-3 h-3" /> Ada Risiko</> : <><CheckCircle2 className="w-3 h-3" /> Aman</>}
+                                                        </span>
+                                                    </td>
+                                                    <td className="py-3 px-4">
+                                                        {history.length > 0 ? (
+                                                            <div className="flex flex-wrap gap-1">
+                                                                {history.map((pt: any, i: number) => (
+                                                                    <span key={i} className="text-[10px] bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5 text-gray-500">
+                                                                        T{i + 1}: {pt.temp}°C {pt.hum}% {Number(pt.ammo).toFixed(2)}ppm
+                                                                    </span>
+                                                                ))}
+                                                            </div>
+                                                        ) : (
+                                                            <span className="text-xs text-gray-300">{r.input_data?.input_count ?? "—"} data</span>
+                                                        )}
+                                                    </td>
+                                                </tr>
+                                            );
+                                        })}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </>
+                    )}
 
-            {/* Empty State for Results */}
-            {predictions.length === 0 && (
-                <Card>
-                    <CardContent className="py-12 text-center">
-                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
-                            <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-                            </svg>
+                    {/* Pagination */}
+                    {!loadingHistory && tabRecords.length > 0 && (
+                        <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100">
+                            <div className="flex items-center gap-3">
+                                <p className="text-xs text-gray-400">
+                                    Halaman <span className="font-semibold text-gray-700">{historyPage}</span> dari{" "}
+                                    <span className="font-semibold text-gray-700">{totalPages}</span>
+                                    {" "}· {tabRecords.length} total
+                                </p>
+                                <div className="flex items-center gap-1.5 text-xs text-gray-400">
+                                    <span>Tampilkan</span>
+                                    <select
+                                        value={historyPageSize}
+                                        onChange={e => { setHistoryPageSize(Number(e.target.value)); setHistoryPage(1); }}
+                                        className="border border-gray-200 rounded-lg px-2 py-1 text-xs text-gray-600 focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                                    >
+                                        {PAGE_SIZE_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                                    </select>
+                                    <span>baris</span>
+                                </div>
+                            </div>
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setHistoryPage(1)} disabled={historyPage === 1}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronsLeft className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => setHistoryPage(p => Math.max(1, p - 1))} disabled={historyPage === 1}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    const start = Math.max(1, Math.min(historyPage - 2, totalPages - 4));
+                                    const page = start + i;
+                                    return (
+                                        <button key={page} onClick={() => setHistoryPage(page)}
+                                            className={`w-8 h-8 text-xs rounded-lg font-medium transition-colors ${page === historyPage ? "bg-green-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                                            {page}
+                                        </button>
+                                    );
+                                })}
+                                <button onClick={() => setHistoryPage(p => Math.min(totalPages, p + 1))} disabled={historyPage === totalPages}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => setHistoryPage(totalPages)} disabled={historyPage === totalPages}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronsRight className="w-4 h-4" />
+                                </button>
+                            </div>
                         </div>
-                        <h3 className="text-lg font-medium text-gray-900 mb-2">Belum ada hasil prediksi</h3>
-                        <p className="text-gray-500">Pilih kandang dan jalankan prediksi untuk melihat hasil</p>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Info Box */}
-            <Card>
-                <CardContent className="flex items-start gap-4">
-                    <div className="p-3 rounded-xl bg-yellow-50">
-                        <svg className="w-6 h-6 text-yellow-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                        </svg>
-                    </div>
-                    <div>
-                        <p className="text-gray-900 font-medium">Catatan Model</p>
-                        <p className="text-gray-500 text-sm mt-1">
-                            Model prediksi dilatih menggunakan data historis kandang. Hasil prediksi bersifat estimasi dan perlu dikombinasikan dengan pengamatan langsung di lapangan.
-                        </p>
-                    </div>
+                    )}
                 </CardContent>
             </Card>
+
+            {/* ── Model Info (collapsible) ──────────────────────────────────── */}
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+                <button
+                    onClick={() => setShowModelInfo(v => !v)}
+                    className="w-full flex items-center justify-between px-5 py-4 hover:bg-gray-50/60 transition-colors"
+                >
+                    <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-gray-50 rounded-lg">
+                            <Cpu className="w-4 h-4 text-gray-500" />
+                        </div>
+                        <span className="text-sm font-semibold text-gray-700">Informasi Model</span>
+                    </div>
+                    {showModelInfo ? <ChevronUp className="w-4 h-4 text-gray-400" /> : <ChevronDown className="w-4 h-4 text-gray-400" />}
+                </button>
+
+                {showModelInfo && (
+                    <div className="px-5 pb-5 grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-gray-100 pt-4">
+                        <div className="rounded-xl border border-gray-100 bg-gray-50/40 p-4 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <ShieldCheck className="w-4 h-4 text-slate-500" />
+                                    <span className="text-sm font-semibold text-gray-800">Model Klasifikasi</span>
+                                </div>
+                                <span className="flex items-center gap-1 text-[11px] font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                                    <Activity className="w-2.5 h-2.5" /> Active
+                                </span>
+                            </div>
+                            <div className="space-y-1.5 text-xs">
+                                <div className="flex justify-between"><span className="text-gray-500">Algoritma</span><span className="font-medium text-gray-800">{classModel?.type ?? "RandomForestClassifier"}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500">Output</span><span className="font-medium text-gray-800">Normal / Abnormal</span></div>
+                                {classModel?.metrics && (
+                                    <>
+                                        <div className="flex justify-between"><span className="text-gray-500">Accuracy</span><span className="font-semibold text-green-700">{classModel.metrics.accuracy}</span></div>
+                                        <div className="flex justify-between"><span className="text-gray-500">F1 Score</span><span className="font-semibold text-green-700">{classModel.metrics.f1_score}</span></div>
+                                    </>
+                                )}
+                                <div className="pt-1.5 border-t border-gray-200">
+                                    <p className="text-[11px] text-gray-400 leading-relaxed">Input: Suhu, Kelembaban, NH₃, Pakan, Minum, Bobot, Populasi, Luas Kandang, Hari, Jam</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div className="rounded-xl border border-gray-100 bg-gray-50/40 p-4 space-y-2.5">
+                            <div className="flex items-center justify-between">
+                                <div className="flex items-center gap-2">
+                                    <TrendingUp className="w-4 h-4 text-slate-500" />
+                                    <span className="text-sm font-semibold text-gray-800">Model Forecasting</span>
+                                </div>
+                                <span className="flex items-center gap-1 text-[11px] font-medium text-green-700 bg-green-100 px-2 py-0.5 rounded-full">
+                                    <Activity className="w-2.5 h-2.5" /> Active
+                                </span>
+                            </div>
+                            <div className="space-y-1.5 text-xs">
+                                <div className="flex justify-between"><span className="text-gray-500">Algoritma</span><span className="font-medium text-gray-800">{forecastModel?.type ?? "XGBRegressor"}</span></div>
+                                <div className="flex justify-between"><span className="text-gray-500">Output</span><span className="font-medium text-gray-800">Jumlah Kematian (ekor)</span></div>
+                                {forecastModel?.metrics && (
+                                    <>
+                                        <div className="flex justify-between"><span className="text-gray-500">RMSE</span><span className="font-semibold text-green-700">{forecastModel.metrics.rmse}</span></div>
+                                        <div className="flex justify-between"><span className="text-gray-500">Pearson</span><span className="font-semibold text-green-700">{forecastModel.metrics.pearson}</span></div>
+                                    </>
+                                )}
+                                <div className="pt-1.5 border-t border-gray-200">
+                                    <p className="text-[11px] text-gray-400 leading-relaxed">Input: 4 data berurutan (Suhu, Hum, NH₃, Kematian) · Window: 2 jam (30 menit/interval)</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* ── Admin Reload ─────────────────────────────────────────────── */}
+            {isAdmin && (
+                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center justify-between gap-4">
+                    <div className="flex items-center gap-2">
+                        <div className="p-1.5 bg-gray-50 rounded-lg">
+                            <Info className="w-4 h-4 text-gray-400" />
+                        </div>
+                        <div>
+                            <p className="text-sm font-semibold text-gray-800">Reload ML Models</p>
+                            <p className="text-xs text-gray-400 mt-0.5">Reload model dari disk setelah update file model</p>
+                        </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                        {reloadSuccess && (
+                            <span className="flex items-center gap-1 text-xs text-green-600">
+                                <CheckCircle2 className="w-3.5 h-3.5" /> Berhasil
+                            </span>
+                        )}
+                        <button
+                            onClick={handleReload}
+                            disabled={reloading}
+                            className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
+                        >
+                            <RotateCcw className={`w-3.5 h-3.5 ${reloading ? "animate-spin" : ""}`} />
+                            {reloading ? "Memuat..." : "Reload Models"}
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 }
