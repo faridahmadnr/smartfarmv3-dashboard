@@ -456,6 +456,59 @@ export const activityLogsApi = {
     },
 };
 
+// Death Reports API
+export const deathReportsApi = {
+    report: async (data: { count: number; notes?: string; timestamp?: string }, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/death-reports`, {
+            method: "POST",
+            body: JSON.stringify(data),
+            token,
+        });
+    },
+
+    list: async (params?: { page?: number; per_page?: number }, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (params?.page) searchParams.set("page", params.page.toString());
+        if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/death-reports${query ? `?${query}` : ""}`, { token });
+    },
+
+    getTodayTotal: async (token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/death-reports/today-total`, { token });
+    },
+};
+
+// Daily Logs API
+export const dailyLogsApi = {
+    save: async (data: {
+        date?: string;
+        pakan?: number;
+        minum?: number;
+        populasi?: number;
+        bobot?: number;
+        notes?: string;
+    }, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/daily-logs`, {
+            method: "POST",
+            body: JSON.stringify(data),
+            token,
+        });
+    },
+
+    getToday: async (token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/daily-logs/today`, { token });
+    },
+
+    list: async (params?: { page?: number; per_page?: number }, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (params?.page) searchParams.set("page", params.page.toString());
+        if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/daily-logs${query ? `?${query}` : ""}`, { token });
+    },
+};
+
 // WebSocket URL helper
 export const getNotificationWsUrl = (token: string) => {
     const wsBase = API_URL.replace(/^http/, "ws");

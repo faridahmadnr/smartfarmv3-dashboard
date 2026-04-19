@@ -11,7 +11,7 @@ import {
     ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useMyKandang, useModelInfo, useReloadModels } from "@/hooks/useApi";
+import { useModelInfo, useReloadModels } from "@/hooks/useApi";
 import { predictionsApi } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -431,9 +431,24 @@ export default function PredictionsPage() {
                                                         {r.raw_prediction !== null ? Number(r.raw_prediction).toFixed(4) : "—"}
                                                     </td>
                                                     <td className="py-3 px-4">
-                                                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${hasRisk ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}>
-                                                            {hasRisk ? <><HeartCrack className="w-3 h-3" /> Ada Risiko</> : <><CheckCircle2 className="w-3 h-3" /> Aman</>}
-                                                        </span>
+                                                        {(() => {
+                                                            const d = r.predicted_death ?? 0;
+                                                            if (d === 0) return (
+                                                                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-green-50 text-green-700">
+                                                                    <CheckCircle2 className="w-3 h-3" /> Aman
+                                                                </span>
+                                                            );
+                                                            if (d <= 3) return (
+                                                                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700">
+                                                                    <AlertTriangle className="w-3 h-3" /> Waspada
+                                                                </span>
+                                                            );
+                                                            return (
+                                                                <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-red-50 text-red-600">
+                                                                    <HeartCrack className="w-3 h-3" /> Bahaya
+                                                                </span>
+                                                            );
+                                                        })()}
                                                     </td>
                                                     <td className="py-3 px-4">
                                                         {history.length > 0 ? (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
-import { kandangApi, usersApi, sensorDataApi, notificationsApi, activityLogsApi, predictionsApi, getNotificationWsUrl } from "@/lib/api";
+import { kandangApi, usersApi, sensorDataApi, notificationsApi, activityLogsApi, predictionsApi, deathReportsApi, dailyLogsApi, getNotificationWsUrl } from "@/lib/api";
 
 // Suppress SESSION_EXPIRED errors — the overlay in the layout handles redirect
 function parseError(err: unknown): string | null {
@@ -1133,6 +1133,143 @@ export function useReloadModels() {
     );
 
     return { mutate, loading, error };
+}
+
+// Death Reports hooks
+export function useCreateDeathReport() {
+    const { data: session } = useSession();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const mutate = useCallback(
+        async (data: { count: number; notes?: string }): Promise<{ success: boolean; error?: string }> => {
+            if (!session?.accessToken) return { success: false, error: "No access token" };
+            setLoading(true);
+            setError(null);
+            try {
+                await deathReportsApi.report(data, session.accessToken);
+                return { success: true };
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : "Gagal melaporkan kematian";
+                setError(msg);
+                return { success: false, error: msg };
+            } finally {
+                setLoading(false);
+            }
+        },
+        [session?.accessToken]
+    );
+
+    return { mutate, loading, error };
+}
+
+// Daily Logs hooks
+export function useCreateDailyLog() {
+    const { data: session } = useSession();
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+
+    const mutate = useCallback(
+        async (data: { pakan?: number; minum?: number; populasi?: number; bobot?: number; notes?: string; date?: string }): Promise<{ success: boolean; error?: string }> => {
+            if (!session?.accessToken) return { success: false, error: "No access token" };
+            setLoading(true);
+            setError(null);
+            try {
+                await dailyLogsApi.save(data, session.accessToken);
+                return { success: true };
+            } catch (err) {
+                const msg = err instanceof Error ? err.message : "Gagal menyimpan log harian";
+                setError(msg);
+                return { success: false, error: msg };
+            } finally {
+                setLoading(false);
+            }
+        },
+        [session?.accessToken]
+    );
+
+    return { mutate, loading, error };
+}
+
+export interface DailyLog {
+    id: string;
+    kandang_id: string;
+    date: string;
+    pakan?: number;
+    minum?: number;
+    populasi?: number;
+    bobot?: number;
+    notes?: string;
+    recorded_by?: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export function useTodayDailyLog() {
+    const { data: session, status } = useSession();
+    const [data, setData] = useState<DailyLog | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const refetch = useCallback(async () => {
+        if (!session?.accessToken) { setLoading(false); return; }
+        setLoading(true);
+        try {
+            const res: any = await dailyLogsApi.getToday(session.accessToken);
+            setData(res?.data ?? null);
+        } catch (err) {
+            setError(parseError(err));
+        } finally {
+            setLoading(false);
+        }
+    }, [session?.accessToken]);
+
+    useEffect(() => {
+        if (status === "loading") return;
+        if (status === "authenticated" && session?.accessToken) refetch();
+        else setLoading(false);
+    }, [status, session?.accessToken, refetch]);
+
+    return { data, loading, error, refetch };
+}
+
+export interface DeathReportItem {
+    id: string;
+    kandang_id: string;
+    count: number;
+    notes?: string;
+    timestamp: string;
+    reported_by?: string;
+    created_at: string;
+}
+
+export function useDeathReports() {
+    const { data: session, status } = useSession();
+    const [data, setData] = useState<{ items: DeathReportItem[]; total: number } | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+
+    const refetch = useCallback(async () => {
+        if (!session?.accessToken) { setLoading(false); return; }
+        setLoading(true);
+        try {
+            const res: any = await deathReportsApi.list({ per_page: 20 }, session.accessToken);
+            const d = res?.data ?? res;
+            setData({ items: d?.items ?? [], total: d?.total ?? 0 });
+        } catch (err) {
+            setError(parseError(err));
+        } finally {
+            setLoading(false);
+        }
+    }, [session?.accessToken]);
+
+    useEffect(() => {
+        if (status === "loading") return;
+        if (status === "authenticated" && session?.accessToken) refetch();
+        else setLoading(false);
+    }, [status, session?.accessToken, refetch]);
+
+    return { data, loading, error, refetch };
 }
 
 // WebSocket Notification hook
