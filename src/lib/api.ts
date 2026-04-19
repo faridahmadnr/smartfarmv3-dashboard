@@ -500,10 +500,12 @@ export const dailyLogsApi = {
         return fetchWithAuth(`${API_PREFIX}/daily-logs/today`, { token });
     },
 
-    list: async (params?: { page?: number; per_page?: number }, token?: string) => {
+    list: async (params?: { page?: number; per_page?: number; start_date?: string; end_date?: string }, token?: string) => {
         const searchParams = new URLSearchParams();
         if (params?.page) searchParams.set("page", params.page.toString());
         if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
+        if (params?.start_date) searchParams.set("start_date", params.start_date);
+        if (params?.end_date) searchParams.set("end_date", params.end_date);
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/daily-logs${query ? `?${query}` : ""}`, { token });
     },

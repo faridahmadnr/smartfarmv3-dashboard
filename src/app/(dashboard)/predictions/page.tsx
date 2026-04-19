@@ -363,7 +363,7 @@ export default function PredictionsPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            {["Waktu", "Hasil", "Confidence", "Suhu", "Kelembaban", "NH₃ (ppm)", "Pakan (g)", "Minum (ml)", "Bobot (g)", "Populasi", "Luas (m²)", "Hari Ke-"].map(h => (
+                                            {["Waktu", "Hasil", "Confidence", "Suhu", "Kelembaban", "NH₃ (ppm)"].map(h => (
                                                 <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
                                             ))}
                                         </tr>
@@ -390,12 +390,6 @@ export default function PredictionsPage() {
                                                         {inp.amoniak !== undefined ? Number(inp.amoniak).toFixed(3)
                                                             : inp["Amoniak"] !== undefined ? Number(inp["Amoniak"]).toFixed(3) : "—"}
                                                     </td>
-                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.pakan ?? inp["Pakan"] ?? "—"}</td>
-                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.minum ?? inp["Minum"] ?? "—"}</td>
-                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.bobot ?? inp["Bobot"] ?? "—"}</td>
-                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.populasi ?? inp["Populasi"] ?? "—"}</td>
-                                                    <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.luas_kandang ?? inp["Luas Kandang"] ?? "—"}</td>
-                                                    <td className="py-3 px-4 text-gray-500">{inp.hari_ke ?? inp["Hari Ke-"] !== undefined ? `H-${inp.hari_ke ?? inp["Hari Ke-"]}` : "—"}</td>
                                                 </tr>
                                             );
                                         })}
@@ -409,7 +403,7 @@ export default function PredictionsPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            {["Waktu", "Prediksi Kematian", "Raw Value", "Status Risiko", "Input Data Points"].map(h => (
+                                            {["Waktu Prediksi", "Prediksi Kematian", "Risiko", "Raw Score", "Input Data"].map(h => (
                                                 <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
                                             ))}
                                         </tr>
@@ -427,9 +421,6 @@ export default function PredictionsPage() {
                                                         </span>
                                                         <span className="text-xs text-gray-400 ml-1">ekor</span>
                                                     </td>
-                                                    <td className="py-3 px-4 text-xs text-gray-500 tabular-nums">
-                                                        {r.raw_prediction !== null ? Number(r.raw_prediction).toFixed(4) : "—"}
-                                                    </td>
                                                     <td className="py-3 px-4">
                                                         {(() => {
                                                             const d = r.predicted_death ?? 0;
@@ -438,7 +429,7 @@ export default function PredictionsPage() {
                                                                     <CheckCircle2 className="w-3 h-3" /> Aman
                                                                 </span>
                                                             );
-                                                            if (d <= 3) return (
+                                                            if (d === 1) return (
                                                                 <span className="inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full bg-yellow-50 text-yellow-700">
                                                                     <AlertTriangle className="w-3 h-3" /> Waspada
                                                                 </span>
@@ -450,17 +441,20 @@ export default function PredictionsPage() {
                                                             );
                                                         })()}
                                                     </td>
+                                                    <td className="py-3 px-4 text-xs text-gray-500 tabular-nums">
+                                                        {r.raw_prediction !== null ? Number(r.raw_prediction).toFixed(4) : "—"}
+                                                    </td>
                                                     <td className="py-3 px-4">
                                                         {history.length > 0 ? (
                                                             <div className="flex flex-wrap gap-1">
                                                                 {history.map((pt: any, i: number) => (
-                                                                    <span key={i} className="text-[10px] bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5 text-gray-500">
+                                                                    <span key={i} className="text-[10px] bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5 text-gray-500 whitespace-nowrap">
                                                                         T{i + 1}: {pt.temp}°C {pt.hum}% {Number(pt.ammo).toFixed(2)}ppm
                                                                     </span>
                                                                 ))}
                                                             </div>
                                                         ) : (
-                                                            <span className="text-xs text-gray-300">{r.input_data?.input_count ?? "—"} data</span>
+                                                            <span className="text-xs text-gray-300">{r.input_data?.input_count ?? "—"}</span>
                                                         )}
                                                     </td>
                                                 </tr>
