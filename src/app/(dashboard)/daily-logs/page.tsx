@@ -1,12 +1,11 @@
 "use client";
 
-import { useState } from "react";
-import { BookOpen, RefreshCw, Plus } from "lucide-react";
+import { useState, useCallback, useEffect } from "react";
+import { BookOpen, RefreshCw, Plus, RotateCcw, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { dailyLogsApi } from "@/lib/api";
-import { useEffect, useCallback } from "react";
 
 interface DailyLogItem {
     id: string;
@@ -20,6 +19,8 @@ interface DailyLogItem {
     updated_at: string;
 }
 
+const PER_PAGE = 20;
+
 export default function DailyLogsPage() {
     const { data: session, status } = useSession();
     const [items, setItems] = useState<DailyLogItem[]>([]);
@@ -27,13 +28,28 @@ export default function DailyLogsPage() {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [showModal, setShowModal] = useState(false);
-    const perPage = 30;
+
+    // Filter state
+    const [startInput, setStartInput] = useState("");
+    const [endInput, setEndInput] = useState("");
+    const [appliedStart, setAppliedStart] = useState("");
+    const [appliedEnd, setAppliedEnd] = useState("");
+
+    const hasFilter = !!(appliedStart || appliedEnd);
 
     const load = useCallback(async () => {
         if (!session?.accessToken) return;
         setLoading(true);
         try {
-            const res: any = await dailyLogsApi.list({ page, per_page: perPage }, session.accessToken);
+            const res: any = await dailyLogsApi.list(
+                {
+                    page,
+                    per_page: PER_PAGE,
+                    start_date: appliedStart || undefined,
+                    end_date: appliedEnd || undefined,
+                },
+                session.accessToken,
+            );
             const d = res?.data ?? res;
             setItems(d?.items ?? []);
             setTotal(d?.total ?? 0);
@@ -42,13 +58,25 @@ export default function DailyLogsPage() {
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, page]);
+    }, [session?.accessToken, page, appliedStart, appliedEnd]);
 
     useEffect(() => {
         if (status === "authenticated") load();
     }, [status, load]);
 
-    const totalPages = Math.max(1, Math.ceil(total / perPage));
+    const applyFilter = () => {
+        setAppliedStart(startInput);
+        setAppliedEnd(endInput);
+        setPage(1);
+    };
+
+    const resetFilter = () => {
+        setStartInput(""); setEndInput("");
+        setAppliedStart(""); setAppliedEnd("");
+        setPage(1);
+    };
+
+    const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
     const formatDate = (dateStr: string) =>
         new Date(dateStr).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
@@ -73,6 +101,48 @@ export default function DailyLogsPage() {
                 </div>
             </div>
 
+            {/* Filter bar */}
+            <div className="flex flex-wrap items-end gap-4 bg-white border border-gray-100 rounded-xl px-4 py-3 shadow-sm">
+                <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Dari Tanggal</span>
+                    <input
+                        type="date"
+                        value={startInput}
+                        onChange={e => setStartInput(e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600"
+                    />
+                </div>
+                <div className="flex flex-col gap-0.5">
+                    <span className="text-[10px] font-semibold text-gray-400 uppercase tracking-wide">Hingga Tanggal</span>
+                    <input
+                        type="date"
+                        value={endInput}
+                        onChange={e => setEndInput(e.target.value)}
+                        className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600"
+                    />
+                </div>
+                <div className="flex items-center gap-2 pb-0.5">
+                    <button onClick={applyFilter}
+                        className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors">
+                        Terapkan
+                    </button>
+                    {hasFilter && (
+                        <button onClick={resetFilter}
+                            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 bg-white px-2.5 py-1.5 rounded-lg transition-colors">
+                            <RotateCcw className="w-3 h-3" /> Reset
+                        </button>
+                    )}
+                </div>
+                {hasFilter && (
+                    <span className="text-xs text-green-600 font-medium pb-0.5">
+                        {appliedStart && appliedEnd
+                            ? `${appliedStart} – ${appliedEnd}`
+                            : appliedStart ? `Dari ${appliedStart}`
+                            : `Hingga ${appliedEnd}`}
+                    </span>
+                )}
+            </div>
+
             <Card>
                 <CardHeader className="border-b border-gray-100">
                     <div className="flex items-center gap-2">
@@ -88,11 +158,13 @@ export default function DailyLogsPage() {
                             <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-50 flex items-center justify-center">
                                 <BookOpen className="w-6 h-6 text-gray-300" />
                             </div>
-                            <p className="text-sm text-gray-400">Belum ada log harian</p>
-                            <button onClick={() => setShowModal(true)}
-                                className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
-                                + Input sekarang
-                            </button>
+                            <p className="text-sm text-gray-400">{hasFilter ? "Tidak ada data untuk rentang tanggal ini" : "Belum ada log harian"}</p>
+                            {!hasFilter && (
+                                <button onClick={() => setShowModal(true)}
+                                    className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                                    + Input sekarang
+                                </button>
+                            )}
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
@@ -120,20 +192,39 @@ export default function DailyLogsPage() {
                         </div>
                     )}
 
-                    {!loading && totalPages > 1 && (
-                        <div className="flex items-center justify-between px-4 py-3 border-t border-gray-100">
+                    {!loading && totalPages >= 1 && total > 0 && (
+                        <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100">
                             <p className="text-xs text-gray-400">
                                 Halaman <span className="font-semibold text-gray-700">{page}</span> dari{" "}
                                 <span className="font-semibold text-gray-700">{totalPages}</span>
+                                {" "}· {total} total
                             </p>
-                            <div className="flex gap-1">
-                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-                                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-colors">
-                                    Sebelumnya
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setPage(1)} disabled={page === 1}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronsLeft className="w-4 h-4" />
                                 </button>
+                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronLeft className="w-4 h-4" />
+                                </button>
+                                {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                    const start = Math.max(1, Math.min(page - 2, totalPages - 4));
+                                    const p = start + i;
+                                    return (
+                                        <button key={p} onClick={() => setPage(p)}
+                                            className={`w-8 h-8 text-xs rounded-lg font-medium transition-colors ${p === page ? "bg-green-600 text-white" : "text-gray-600 hover:bg-gray-100"}`}>
+                                            {p}
+                                        </button>
+                                    );
+                                })}
                                 <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-                                    className="px-3 py-1.5 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 disabled:opacity-30 transition-colors">
-                                    Berikutnya
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronRight className="w-4 h-4" />
+                                </button>
+                                <button onClick={() => setPage(totalPages)} disabled={page === totalPages}
+                                    className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
+                                    <ChevronsRight className="w-4 h-4" />
                                 </button>
                             </div>
                         </div>

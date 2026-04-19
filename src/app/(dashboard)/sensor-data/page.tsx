@@ -83,7 +83,6 @@ export default function SensorDataPage() {
     useEffect(() => { setCurrentPage(1); }, []);
 
     const applyDateFilter = () => {
-        // Pad dates to full ISO range so BE receives e.g. "2024-03-01T00:00:00" / "2024-03-31T23:59:59"
         setAppliedStart(startInput ? `${startInput}T00:00:00` : "");
         setAppliedEnd(endInput ? `${endInput}T23:59:59` : "");
         setCurrentPage(1);
@@ -93,11 +92,31 @@ export default function SensorDataPage() {
         setAppliedStart(""); setAppliedEnd("");
         setHariKeFilter("");
         setStatusFilter("all");
+        setChartPreset("all");
+        setCurrentPage(1);
+    };
+    const applyPreset = (preset: "all" | "today" | "7d" | "30d" | "custom") => {
+        setChartPreset(preset);
+        if (preset === "all") { resetDateFilter(); return; }
+        if (preset === "custom") return;
+        const now = new Date();
+        const todayStr = now.toISOString().split("T")[0];
+        let startStr = todayStr;
+        if (preset === "7d") {
+            const d = new Date(now); d.setDate(d.getDate() - 6);
+            startStr = d.toISOString().split("T")[0];
+        } else if (preset === "30d") {
+            startStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
+        }
+        setStartInput(startStr); setEndInput(todayStr);
+        setAppliedStart(`${startStr}T00:00:00`);
+        setAppliedEnd(`${todayStr}T23:59:59`);
         setCurrentPage(1);
     };
     const hasActiveFilter = appliedStart || appliedEnd || hariKeFilter || statusFilter !== "all";
 
     const [showFilters, setShowFilters] = useState(false);
+    const [chartPreset, setChartPreset] = useState<"all" | "today" | "7d" | "30d" | "custom">("all");
 
     const { data: sensorData, loading, isFetching, error, refetch } = useSensorData({
         page: currentPage,
@@ -363,6 +382,44 @@ export default function SensorDataPage() {
                         iconBg="bg-violet-50" iconColor="text-violet-500" topBar="bg-violet-400" />
                 </div>
             )}
+
+            {/* Quick Preset Filter */}
+            <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Periode:</span>
+                {([
+                    { id: "today", label: "Hari ini" },
+                    { id: "7d", label: "7 Hari" },
+                    { id: "30d", label: "Bulan ini" },
+                    { id: "custom", label: "Custom" },
+                ] as const).map(p => (
+                    <button
+                        key={p.id}
+                        onClick={() => applyPreset(p.id)}
+                        className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${chartPreset === p.id ? "bg-green-600 text-white border-green-600" : "border-gray-200 text-gray-600 hover:bg-gray-50 bg-white"}`}
+                    >
+                        {p.label}
+                    </button>
+                ))}
+                {chartPreset === "custom" && (
+                    <div className="flex items-center gap-2 ml-1">
+                        <input type="date" value={startInput} onChange={e => setStartInput(e.target.value)}
+                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600" />
+                        <span className="text-gray-300">–</span>
+                        <input type="date" value={endInput} onChange={e => setEndInput(e.target.value)}
+                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600" />
+                        <button onClick={applyDateFilter}
+                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors">
+                            Terapkan
+                        </button>
+                    </div>
+                )}
+                {(appliedStart || appliedEnd) && chartPreset !== "custom" && (
+                    <button onClick={() => applyPreset("all")}
+                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 bg-white px-2.5 py-1.5 rounded-lg transition-colors">
+                        <RotateCcw className="w-3 h-3" /> Reset
+                    </button>
+                )}
+            </div>
 
             {/* Success */}
             {formSuccess && (
