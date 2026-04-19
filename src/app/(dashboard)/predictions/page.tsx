@@ -11,7 +11,7 @@ import {
     ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useKandangs, useModelInfo, useReloadModels } from "@/hooks/useApi";
+import { useMyKandang, useModelInfo, useReloadModels } from "@/hooks/useApi";
 import { predictionsApi } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -67,7 +67,6 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50];
 
 export default function PredictionsPage() {
     const { data: session, status } = useSession();
-    const { data: kandangData } = useKandangs();
     const { data: modelInfo } = useModelInfo();
     const { mutate: reloadModels, loading: reloading } = useReloadModels();
 
@@ -82,17 +81,16 @@ export default function PredictionsPage() {
     const [historyPageSize, setHistoryPageSize] = useState(10);
 
     const isAdmin = session?.user?.role === "admin";
-    const kandang = kandangData?.items?.[0];
 
     // Reset page on tab change
     useEffect(() => { setHistoryPage(1); }, [activeTab]);
 
     // ── Fetch ────────────────────────────────────────────────────────────────
     const loadHistory = useCallback(async () => {
-        if (!session?.accessToken || !kandang?.id) return;
+        if (!session?.accessToken) return;
         setLoadingHistory(true);
         try {
-            const res: any = await predictionsApi.getHistory(kandang.id, session.accessToken);
+            const res: any = await predictionsApi.getHistory(undefined, session.accessToken);
             let items: PredictionRecord[] = [];
             if (Array.isArray(res)) items = res;
             else if (Array.isArray(res?.data)) items = res.data;
@@ -103,13 +101,13 @@ export default function PredictionsPage() {
         } finally {
             setLoadingHistory(false);
         }
-    }, [session?.accessToken, kandang?.id]);
+    }, [session?.accessToken]);
 
     useEffect(() => {
-        if (status === "authenticated" && session?.accessToken && kandang?.id) {
+        if (status === "authenticated" && session?.accessToken) {
             loadHistory();
         }
-    }, [status, session?.accessToken, kandang?.id, loadHistory]);
+    }, [status, session?.accessToken, loadHistory]);
 
     const handleReload = async () => {
         const result = await reloadModels();

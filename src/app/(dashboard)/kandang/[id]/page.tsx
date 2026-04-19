@@ -20,7 +20,7 @@ export default function KandangDetailPage() {
     const [showDeleteModal, setShowDeleteModal] = useState(false);
 
     // Sensor data stats (24 hours)
-    const { data: sensorStats, loading: loadingStats } = useSensorDataStats(id as string, 24);
+    const { data: sensorStats, loading: loadingStats } = useSensorDataStats(24);
 
     const canEdit = session?.user?.role === "admin" || session?.user?.role === "pemilik";
 

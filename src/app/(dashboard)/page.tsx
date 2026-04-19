@@ -19,7 +19,7 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useKandangs, useNotifications, useSensorData } from "@/hooks/useApi";
+import { useMyKandang, useNotifications, useSensorData } from "@/hooks/useApi";
 import { useLiveSensorData } from "@/hooks/useLiveSensorData";
 
 // ─── Stat Card ────────────────────────────────────────────────────────────────
@@ -64,15 +64,12 @@ function StatCard({ label, value, unit, icon, iconBg, iconColor, topBar, loading
 
 export default function DashboardPage() {
     const { status } = useSession();
-    const { data: kandangData, loading: loadingKandang } = useKandangs();
+    const { data: kandang, loading: loadingKandang } = useMyKandang();
     const { data: notifData, loading: loadingNotif } = useNotifications();
 
-    const kandang = kandangData?.items?.[0];
-    const kandangId = kandang?.id;
+    const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData();
 
-    const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData(
-        kandangId ? { kandang_id: kandangId } : undefined
-    );
+    const latestSensor = kandang?.latest_sensor;
 
     const onNewData = useCallback(() => { refetchSensor(); }, [refetchSensor]);
     useLiveSensorData(onNewData);
@@ -87,7 +84,6 @@ export default function DashboardPage() {
 
     const notifications = notifData?.items || [];
     const unreadAlerts = notifications.filter((n: any) => !n.is_read).slice(0, 3);
-    const latestSensor = kandang?.latest_sensor;
     const sensorItems = sensorData?.items || [];
     const recentSensors = sensorItems.slice(0, 10);
 

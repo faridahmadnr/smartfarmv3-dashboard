@@ -146,6 +146,52 @@ export interface ModelInfo {
 }
 
 // Kandang hooks
+export function useMyKandang() {
+    const { data: session, status } = useSession();
+    const [data, setData] = useState<Kandang | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const hasFetched = useRef(false);
+
+    const refetch = useCallback(async () => {
+        if (status === "loading") return;
+        if (!session?.accessToken) {
+            setLoading(false);
+            return;
+        }
+
+        setLoading(true);
+        setError(null);
+
+        try {
+            const response = await kandangApi.getMe(session.accessToken);
+            if (response && typeof response === "object") {
+                if ("data" in response && response.data) {
+                    setData(response.data as Kandang);
+                } else if ("id" in response) {
+                    setData(response as unknown as Kandang);
+                }
+            }
+        } catch (err) {
+            setError(parseError(err));
+        } finally {
+            setLoading(false);
+        }
+    }, [session?.accessToken, status]);
+
+    useEffect(() => {
+        if (status === "loading") return;
+        if (status === "authenticated" && session?.accessToken && !hasFetched.current) {
+            hasFetched.current = true;
+            refetch();
+        } else if (status === "unauthenticated") {
+            setLoading(false);
+        }
+    }, [status, session?.accessToken, refetch]);
+
+    return { data, loading, error, refetch };
+}
+
 export function useKandangs() {
     const { data: session, status } = useSession();
     const [data, setData] = useState<{ items: Kandang[]; total: number } | null>(null);
@@ -356,23 +402,22 @@ export function useUser(id: string) {
 }
 
 // Sensor Data hooks
-export function useSensorData(params?: { kandang_id?: string; page?: number; page_size?: number; start_date?: string; end_date?: string }) {
+export function useSensorData(params?: { page?: number; page_size?: number; start_date?: string; end_date?: string }) {
     const { data: session, status } = useSession();
     const [data, setData] = useState<{ items: SensorData[]; total: number } | null>(null);
-    const [loading, setLoading] = useState(true);   // true only on first load (no data yet)
-    const [isFetching, setIsFetching] = useState(false); // true on any background refetch
+    const [loading, setLoading] = useState(true);
+    const [isFetching, setIsFetching] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const hasFetched = useRef(false);
     const prevKey = useRef<string>("");
 
-    // Reset hasFetched when any pagination param changes
     useEffect(() => {
-        const key = `${params?.kandang_id}|${params?.page}|${params?.page_size}|${params?.start_date}|${params?.end_date}`;
+        const key = `${params?.page}|${params?.page_size}|${params?.start_date}|${params?.end_date}`;
         if (prevKey.current !== key) {
             prevKey.current = key;
             hasFetched.current = false;
         }
-    }, [params?.kandang_id, params?.page, params?.page_size, params?.start_date, params?.end_date]);
+    }, [params?.page, params?.page_size, params?.start_date, params?.end_date]);
 
     const refetch = useCallback(async () => {
         if (status === "loading") return;
@@ -381,15 +426,6 @@ export function useSensorData(params?: { kandang_id?: string; page?: number; pag
             return;
         }
 
-        // If no kandang_id, return empty data without making API call
-        if (!params?.kandang_id) {
-            setData({ items: [], total: 0 });
-            setLoading(false);
-            return;
-        }
-
-        // If we already have data, use isFetching (keeps old rows visible)
-        // Otherwise use loading (first paint — no content yet)
         if (data !== null) {
             setIsFetching(true);
         } else {
@@ -422,7 +458,7 @@ export function useSensorData(params?: { kandang_id?: string; page?: number; pag
             setLoading(false);
             setIsFetching(false);
         }
-    }, [session?.accessToken, status, params?.kandang_id, params?.page, params?.page_size, params?.start_date, params?.end_date, data]);
+    }, [session?.accessToken, status, params?.page, params?.page_size, params?.start_date, params?.end_date, data]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -973,7 +1009,7 @@ export function useUpdateSensorData() {
     return { mutate, loading, error };
 }
 
-export function useSensorDataStats(kandangId?: string, hours?: number) {
+export function useSensorDataStats(hours?: number) {
     const { data: session, status } = useSession();
     const [data, setData] = useState<SensorDataStats | null>(null);
     const [loading, setLoading] = useState(true);
@@ -981,7 +1017,7 @@ export function useSensorDataStats(kandangId?: string, hours?: number) {
     const hasFetched = useRef(false);
 
     const refetch = useCallback(async () => {
-        if (status === "loading" || !kandangId) return;
+        if (status === "loading") return;
         if (!session?.accessToken) {
             setLoading(false);
             return;
@@ -991,7 +1027,7 @@ export function useSensorDataStats(kandangId?: string, hours?: number) {
         setError(null);
 
         try {
-            const response = await sensorDataApi.getStats(kandangId, hours, session.accessToken);
+            const response = await sensorDataApi.getStats(hours, session.accessToken);
             if (response && typeof response === "object") {
                 if ("data" in response && response.data) {
                     setData(response.data as SensorDataStats);
@@ -1005,17 +1041,17 @@ export function useSensorDataStats(kandangId?: string, hours?: number) {
         } finally {
             setLoading(false);
         }
-    }, [kandangId, hours, session?.accessToken, status]);
+    }, [hours, session?.accessToken, status]);
 
     useEffect(() => {
-        if (status === "loading" || !kandangId) return;
+        if (status === "loading") return;
         if (status === "authenticated" && session?.accessToken && !hasFetched.current) {
             hasFetched.current = true;
             refetch();
         } else if (status === "unauthenticated") {
             setLoading(false);
         }
-    }, [status, session?.accessToken, refetch, kandangId]);
+    }, [status, session?.accessToken, refetch]);
 
     return { data, loading, error, refetch };
 }
