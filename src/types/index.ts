@@ -95,6 +95,30 @@ export interface PredictionResult {
     };
 }
 
+export interface DeathReport {
+    id: string;
+    kandang_id: string;
+    count: number;
+    notes?: string;
+    timestamp: string;
+    reported_by?: string;
+    created_at: string;
+}
+
+export interface DailyLog {
+    id: string;
+    kandang_id: string;
+    date: string;
+    pakan?: number;
+    minum?: number;
+    populasi?: number;
+    bobot?: number;
+    notes?: string;
+    recorded_by?: string;
+    created_at: string;
+    updated_at: string;
+}
+
 // API Response wrapper
 export interface ApiResponse<T> {
     success: boolean;
