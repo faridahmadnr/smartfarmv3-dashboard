@@ -410,6 +410,7 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
     const [error, setError] = useState<string | null>(null);
     const hasFetched = useRef(false);
     const prevKey = useRef<string>("");
+    const hasData = useRef(false);
 
     useEffect(() => {
         const key = `${params?.page}|${params?.page_size}|${params?.start_date}|${params?.end_date}`;
@@ -426,7 +427,7 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
             return;
         }
 
-        if (data !== null) {
+        if (hasData.current) {
             setIsFetching(true);
         } else {
             setLoading(true);
@@ -440,8 +441,10 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
                     const items = (response as any).items as SensorData[];
                     const total = (response as any).total || items.length;
                     setData({ items, total });
+                    hasData.current = true;
                 } else if (Array.isArray(response)) {
                     setData({ items: response as SensorData[], total: response.length });
+                    hasData.current = true;
                 } else if ("data" in response && response.data) {
                     const respData = response.data as any;
                     if (Array.isArray(respData)) {
@@ -449,6 +452,7 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
                     } else {
                         setData({ items: respData.items || [], total: respData.total || 0 });
                     }
+                    hasData.current = true;
                 }
             }
         } catch (err) {
@@ -458,7 +462,7 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
             setLoading(false);
             setIsFetching(false);
         }
-    }, [session?.accessToken, status, params?.page, params?.page_size, params?.start_date, params?.end_date, data]);
+    }, [session?.accessToken, status, params?.page, params?.page_size, params?.start_date, params?.end_date]);
 
     useEffect(() => {
         if (status === "loading") return;

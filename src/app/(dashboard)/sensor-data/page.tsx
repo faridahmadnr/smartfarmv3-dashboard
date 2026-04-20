@@ -18,7 +18,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSensorData, useMyKandang, useCreateSensorData, useUpdateSensorData } from "@/hooks/useApi";
+import { useSensorData, useMyKandang, useCreateSensorData } from "@/hooks/useApi";
 import { useLiveSensorData } from "@/hooks/useLiveSensorData";
 
 // ─── Stat Card (same pattern as dashboard) ────────────────────────────────────
@@ -63,6 +63,12 @@ function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; s
 
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
 
+function get6hRange() {
+    const now = new Date();
+    const from = new Date(now.getTime() - 6 * 60 * 60 * 1000);
+    return { start: from.toISOString(), end: now.toISOString() };
+}
+
 export default function SensorDataPage() {
     const { data: session, status } = useSession();
     const { data: kandang, loading: loadingKandang } = useMyKandang();
@@ -95,20 +101,20 @@ export default function SensorDataPage() {
     const hasActiveFilter = !!(appliedStart || appliedEnd || hariKeFilter || statusFilter !== "all");
 
     // ── CHART filter state (preset buttons, independent of table) ─────────────
-    const [chartPreset, setChartPreset] = useState<"all" | "today" | "7d" | "30d" | "custom">("all");
+    const [chartPreset, setChartPreset] = useState<"6h" | "today" | "7d" | "30d" | "custom">("6h");
     const [chartCustomStart, setChartCustomStart] = useState("");
     const [chartCustomEnd, setChartCustomEnd] = useState("");
-    const [chartAppliedStart, setChartAppliedStart] = useState("");
-    const [chartAppliedEnd, setChartAppliedEnd] = useState("");
+    const [chartAppliedStart, setChartAppliedStart] = useState(() => get6hRange().start);
+    const [chartAppliedEnd, setChartAppliedEnd] = useState(() => get6hRange().end);
 
-    const applyPreset = (preset: "all" | "today" | "7d" | "30d" | "custom") => {
+    const applyPreset = (preset: "6h" | "today" | "7d" | "30d" | "custom") => {
         setChartPreset(preset);
-        if (preset === "all") {
-            setChartAppliedStart(""); setChartAppliedEnd("");
-            setChartCustomStart(""); setChartCustomEnd("");
+        if (preset === "custom") return;
+        if (preset === "6h") {
+            const r = get6hRange();
+            setChartAppliedStart(r.start); setChartAppliedEnd(r.end);
             return;
         }
-        if (preset === "custom") return;
         const now = new Date();
         const todayStr = now.toISOString().split("T")[0];
         let startStr = todayStr;
@@ -143,7 +149,6 @@ export default function SensorDataPage() {
     });
 
     const { mutate: createSensorData, loading: creating } = useCreateSensorData();
-    const { mutate: updateSensorData, loading: updating } = useUpdateSensorData();
     const { connected, liveReadings, lastReceived } = useLiveSensorData();
 
     // ── Form / Edit state ─────────────────────────────────────────────────────
@@ -156,10 +161,6 @@ export default function SensorDataPage() {
     });
     const [formError, setFormError] = useState("");
     const [formSuccess, setFormSuccess] = useState("");
-    const [editingRow, setEditingRow] = useState<any>(null);
-    const [editData, setEditData] = useState({ pakan: "", minum: "", bobot: "", populasi: "", death: "" });
-    const [editError, setEditError] = useState("");
-    const [editSuccess, setEditSuccess] = useState("");
 
     // ── Merge live WS data ────────────────────────────────────────────────────
     const rawApiData = sensorData?.items || [];
@@ -266,29 +267,6 @@ export default function SensorDataPage() {
         }
     };
 
-    const openEditModal = (row: any) => {
-        setEditingRow(row);
-        setEditData({ pakan: row.pakan?.toString() || "", minum: row.minum?.toString() || "", bobot: row.bobot?.toString() || "", populasi: row.populasi?.toString() || "", death: row.death?.toString() || "" });
-        setEditError(""); setEditSuccess("");
-    };
-
-    const handleEditSubmit = async (e: React.FormEvent) => {
-        e.preventDefault();
-        setEditError("");
-        const payload: any = {};
-        if (editData.pakan !== "") payload.pakan = parseFloat(editData.pakan);
-        if (editData.minum !== "") payload.minum = parseFloat(editData.minum);
-        if (editData.bobot !== "") payload.bobot = parseFloat(editData.bobot);
-        if (editData.populasi !== "") payload.populasi = parseInt(editData.populasi);
-        if (editData.death !== "") payload.death = parseInt(editData.death);
-        const result = await updateSensorData(editingRow.id, payload);
-        if (result.success) {
-            setEditSuccess("Data berhasil diupdate!");
-            setTimeout(() => { setEditingRow(null); setEditSuccess(""); refetch(); }, 1500);
-        } else {
-            setEditError(result.error || "Gagal update");
-        }
-    };
 
     const getStatusBadge = (suhu: number, amoniak: number) => {
         if (amoniak > 10 || suhu > 32) return <Badge variant="danger">Bahaya</Badge>;
@@ -411,6 +389,7 @@ export default function SensorDataPage() {
                 <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Periode:</span>
                     {([
+                        { id: "6h", label: "6 Jam" },
                         { id: "today", label: "Hari ini" },
                         { id: "7d", label: "7 Hari" },
                         { id: "30d", label: "Bulan ini" },
@@ -437,8 +416,8 @@ export default function SensorDataPage() {
                             </button>
                         </div>
                     )}
-                    {(chartAppliedStart || chartAppliedEnd) && chartPreset !== "custom" && (
-                        <button onClick={() => applyPreset("all")}
+                    {chartPreset !== "6h" && (
+                        <button onClick={() => applyPreset("6h")}
                             className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 bg-white px-2.5 py-1.5 rounded-lg transition-colors">
                             <RotateCcw className="w-3 h-3" /> Reset
                         </button>
@@ -829,16 +808,6 @@ export default function SensorDataPage() {
                                                     {row.death ?? 0}
                                                 </td>
                                                 <td className="py-3 px-4">{getStatusBadge(row.suhu, row.amoniak)}</td>
-                                                {canInput && (
-                                                    <td className="py-3 px-4">
-                                                        <button
-                                                            onClick={() => openEditModal(row)}
-                                                            className="inline-flex items-center px-2.5 py-1 text-xs font-medium text-blue-600 bg-blue-50 rounded-lg hover:bg-blue-100 transition-colors"
-                                                        >
-                                                            Edit
-                                                        </button>
-                                                    </td>
-                                                )}
                                             </tr>
                                         ))}
                                     </tbody>
@@ -924,44 +893,6 @@ export default function SensorDataPage() {
             )}
 
             {/* Edit Modal */}
-            {editingRow && (
-                <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-                    <div className="bg-white rounded-2xl shadow-xl max-w-lg w-full p-6">
-                        <div className="flex items-center justify-between mb-1">
-                            <h3 className="text-lg font-bold text-gray-900">Edit Data Manual</h3>
-                            <button onClick={() => setEditingRow(null)} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100">
-                                <X className="w-5 h-5" />
-                            </button>
-                        </div>
-                        <p className="text-xs text-gray-400 mb-4">Hari {editingRow.hari_ke} · {formatTimestamp(editingRow.timestamp)}</p>
-                        <form onSubmit={handleEditSubmit} className="space-y-4">
-                            {editError && <div className="p-3 bg-red-50 border border-red-200 rounded-lg"><p className="text-red-700 text-sm">{editError}</p></div>}
-                            {editSuccess && <div className="p-3 bg-green-50 border border-green-200 rounded-lg"><p className="text-green-700 text-sm">{editSuccess}</p></div>}
-                            <div className="grid grid-cols-2 gap-4">
-                                {[
-                                    { label: "Pakan (kg)", name: "pakan", step: "0.1" },
-                                    { label: "Minum (L)", name: "minum", step: "0.1" },
-                                    { label: "Bobot (g)", name: "bobot", step: "1" },
-                                    { label: "Populasi", name: "populasi", step: "1" },
-                                ].map(f => (
-                                    <div key={f.name}>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
-                                        <Input type="number" step={f.step} name={f.name} value={(editData as any)[f.name]} onChange={e => setEditData({ ...editData, [f.name]: e.target.value })} />
-                                    </div>
-                                ))}
-                                <div className="col-span-2">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1.5">Kematian</label>
-                                    <Input type="number" name="death" value={editData.death} onChange={e => setEditData({ ...editData, death: e.target.value })} />
-                                </div>
-                            </div>
-                            <div className="flex justify-end gap-3 pt-2">
-                                <Button type="button" variant="secondary" onClick={() => setEditingRow(null)}>Batal</Button>
-                                <Button type="submit" disabled={updating}>{updating ? "Menyimpan..." : "Simpan"}</Button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
