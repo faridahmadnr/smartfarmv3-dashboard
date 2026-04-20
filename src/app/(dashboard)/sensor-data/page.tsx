@@ -227,13 +227,64 @@ export default function SensorDataPage() {
         const apiIds = new Set(apiItems.map((r: any) => r.id));
         const uniqueLive = liveReadings.filter(lr => !apiIds.has(lr.id));
         const merged = [...uniqueLive, ...apiItems];
-        return [...merged].reverse().map((row: any) => ({
-            time: new Date(row.timestamp).toLocaleString("id-ID", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" }),
-            suhu: row.suhu, kelembaban: row.kelembaban, amoniak: row.amoniak,
-            populasi: row.populasi, death: row.death ?? 0,
-            pakan: row.pakan ?? 0, minum: row.minum ?? 0,
-        }));
+        return [...merged].reverse().map((row: any) => {
+            const d = new Date(row.timestamp);
+            return {
+                time: d.toLocaleString("id-ID", { hour: "2-digit", minute: "2-digit" }),
+                date: d.toLocaleString("id-ID", { day: "2-digit", month: "short" }),
+                fullTime: d.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }),
+                suhu: row.suhu, kelembaban: row.kelembaban, amoniak: row.amoniak,
+                populasi: row.populasi, death: row.death ?? 0,
+                pakan: row.pakan ?? 0, minum: row.minum ?? 0,
+            };
+        });
     }, [chartApiData, liveReadings]);
+
+    // Date range label for chart subtitle
+    const chartDateRange = useMemo(() => {
+        if (chartData.length === 0) return "";
+        const first = chartData[0];
+        const last = chartData[chartData.length - 1];
+        if (first.date === last.date) return first.date;
+        return `${first.date} – ${last.date}`;
+    }, [chartData]);
+
+    // Custom X-axis tick: show date label when date changes
+    const CustomXTick = (props: any) => {
+        const { x, y, payload, index } = props;
+        const entry = chartData[index];
+        if (!entry) return null;
+        const prevEntry = index > 0 ? chartData[index - 1] : null;
+        const showDate = !prevEntry || prevEntry.date !== entry.date;
+        return (
+            <g transform={`translate(${x},${y})`}>
+                <text x={0} y={0} dy={14} textAnchor="middle" fill="#9ca3af" fontSize={11}>
+                    {entry.time}
+                </text>
+                {showDate && (
+                    <text x={0} y={0} dy={28} textAnchor="middle" fill="#6b7280" fontSize={9} fontWeight={600}>
+                        {entry.date}
+                    </text>
+                )}
+            </g>
+        );
+    };
+
+    // Custom tooltip to show full date+time
+    const CustomTooltipContent = ({ active, payload, label }: any) => {
+        if (!active || !payload?.length) return null;
+        const entry = payload[0]?.payload;
+        return (
+            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "12px 16px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+                <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 8, fontWeight: 600 }}>{entry?.fullTime}</p>
+                {payload.map((p: any, i: number) => (
+                    <p key={i} style={{ fontSize: 12, color: p.color, margin: "2px 0" }}>
+                        {p.name}: <strong>{typeof p.value === "number" ? p.value.toFixed(2) : p.value}</strong>
+                    </p>
+                ))}
+            </div>
+        );
+    };
 
     const tooltipStyle = {
         backgroundColor: "#fff", border: "1px solid #e5e7eb",
@@ -522,7 +573,10 @@ export default function SensorDataPage() {
                         <Card>
                             <CardHeader className="border-b border-gray-100">
                                 <div className="flex items-center justify-between gap-4">
-                                    <CardTitle className="text-base">Suhu & Kelembaban</CardTitle>
+                                    <div>
+                                        <CardTitle className="text-base">Suhu & Kelembaban</CardTitle>
+                                        {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
+                                    </div>
                                     <div className="flex items-center gap-4 text-xs text-gray-500">
                                         <span className="flex items-center gap-2">
                                             <span className="w-3 h-1 rounded-full bg-orange-400 inline-block" />
@@ -537,7 +591,7 @@ export default function SensorDataPage() {
                             </CardHeader>
                             <CardContent className="pt-4">
                                 <ResponsiveContainer width="100%" height={300}>
-                                    <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                    <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
                                         <defs>
                                             <linearGradient id="gSuhu" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="5%" stopColor="#f97316" stopOpacity={0.12} />
@@ -549,10 +603,10 @@ export default function SensorDataPage() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                        <XAxis dataKey="time" tick={{ fontSize: 11 }} stroke="#d1d5db" />
+                                        <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
                                         <YAxis yAxisId="s" domain={["auto", "auto"]} tick={{ fontSize: 11 }} stroke="#f97316" />
                                         <YAxis yAxisId="h" orientation="right" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#3b82f6" />
-                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Tooltip content={<CustomTooltipContent />} />
                                         <Area yAxisId="s" type="monotone" dataKey="suhu" stroke="#f97316" strokeWidth={2} fill="url(#gSuhu)" name="Suhu (°C)" />
                                         <Area yAxisId="h" type="monotone" dataKey="kelembaban" stroke="#3b82f6" strokeWidth={2} fill="url(#gHum)" name="Kelembaban (%)" />
                                     </AreaChart>
@@ -564,13 +618,16 @@ export default function SensorDataPage() {
                         <Card>
                             <CardHeader className="border-b border-gray-100">
                                 <div className="flex items-center justify-between gap-4">
-                                    <CardTitle className="text-base">Level Amoniak (NH₃)</CardTitle>
+                                    <div>
+                                        <CardTitle className="text-base">Level Amoniak (NH₃)</CardTitle>
+                                        {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
+                                    </div>
                                     <Badge variant="warning">Batas aman &lt; 10 ppm</Badge>
                                 </div>
                             </CardHeader>
                             <CardContent className="pt-4">
                                 <ResponsiveContainer width="100%" height={240}>
-                                    <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                    <AreaChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
                                         <defs>
                                             <linearGradient id="gAmmo" x1="0" y1="0" x2="0" y2="1">
                                                 <stop offset="5%" stopColor="#ef4444" stopOpacity={0.15} />
@@ -578,9 +635,9 @@ export default function SensorDataPage() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                        <XAxis dataKey="time" tick={{ fontSize: 11 }} stroke="#d1d5db" />
+                                        <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
                                         <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" />
-                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Tooltip content={<CustomTooltipContent />} />
                                         <Area type="monotone" dataKey="amoniak" stroke="#ef4444" strokeWidth={2} fill="url(#gAmmo)" name="Amoniak (ppm)" dot={{ r: 3, fill: "#ef4444" }} />
                                     </AreaChart>
                                 </ResponsiveContainer>
@@ -591,15 +648,18 @@ export default function SensorDataPage() {
                         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                             <Card>
                                 <CardHeader className="border-b border-gray-100">
-                                    <CardTitle className="text-base">Kematian</CardTitle>
+                                    <div>
+                                        <CardTitle className="text-base">Kematian</CardTitle>
+                                        {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
+                                    </div>
                                 </CardHeader>
                                 <CardContent className="pt-4">
                                     <ResponsiveContainer width="100%" height={220}>
-                                        <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                        <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                            <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="#d1d5db" />
+                                            <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
                                             <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" allowDecimals={false} />
-                                            <Tooltip contentStyle={tooltipStyle} />
+                                            <Tooltip content={<CustomTooltipContent />} />
                                             <Bar dataKey="death" fill="#ef4444" name="Kematian" radius={[4, 4, 0, 0]} />
                                         </BarChart>
                                     </ResponsiveContainer>
@@ -608,15 +668,18 @@ export default function SensorDataPage() {
 
                             <Card>
                                 <CardHeader className="border-b border-gray-100">
-                                    <CardTitle className="text-base">Populasi</CardTitle>
+                                    <div>
+                                        <CardTitle className="text-base">Populasi</CardTitle>
+                                        {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
+                                    </div>
                                 </CardHeader>
                                 <CardContent className="pt-4">
                                     <ResponsiveContainer width="100%" height={220}>
-                                        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
                                             <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                            <XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="#d1d5db" />
+                                            <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
                                             <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" domain={["auto", "auto"]} />
-                                            <Tooltip contentStyle={tooltipStyle} />
+                                            <Tooltip content={<CustomTooltipContent />} />
                                             <Line type="monotone" dataKey="populasi" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} name="Populasi" />
                                         </LineChart>
                                     </ResponsiveContainer>
@@ -628,7 +691,10 @@ export default function SensorDataPage() {
                         <Card>
                             <CardHeader className="border-b border-gray-100">
                                 <div className="flex items-center justify-between gap-4">
-                                    <CardTitle className="text-base">Konsumsi Pakan & Minum</CardTitle>
+                                    <div>
+                                        <CardTitle className="text-base">Konsumsi Pakan & Minum</CardTitle>
+                                        {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
+                                    </div>
                                     <div className="flex items-center gap-4 text-xs text-gray-500">
                                         <span className="flex items-center gap-2">
                                             <span className="w-3 h-1 rounded-full bg-amber-400 inline-block" />
@@ -643,11 +709,11 @@ export default function SensorDataPage() {
                             </CardHeader>
                             <CardContent className="pt-4">
                                 <ResponsiveContainer width="100%" height={220}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 5 }}>
+                                    <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                        <XAxis dataKey="time" tick={{ fontSize: 11 }} stroke="#d1d5db" />
+                                        <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
                                         <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" />
-                                        <Tooltip contentStyle={tooltipStyle} />
+                                        <Tooltip content={<CustomTooltipContent />} />
                                         <Line type="monotone" dataKey="pakan" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} name="Pakan (kg)" />
                                         <Line type="monotone" dataKey="minum" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} name="Minum (L)" />
                                     </LineChart>
@@ -788,7 +854,6 @@ export default function SensorDataPage() {
                                             <ThSort col="populasi" label="Populasi" />
                                             <ThSort col="death" label="Kematian" />
                                             <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left">Status</th>
-                                            {canInput && <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left">Aksi</th>}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">

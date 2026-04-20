@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
 import {
     Bell, AlertTriangle, HeartCrack, CheckCircle2,
     RefreshCw, BookCheck, Thermometer, Droplets, Wind,
-    ChevronLeft, ChevronRight,
+    ChevronLeft, ChevronRight, ClipboardList,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
@@ -73,11 +73,11 @@ const TYPE_CONFIG: Record<string, {
         labelText: "text-red-700",
     },
     system: {
-        icon: <Bell className="w-4 h-4" />,
+        icon: <ClipboardList className="w-4 h-4" />,
         iconBg: "bg-blue-50",
         iconColor: "text-blue-500",
         accentBorder: "border-l-blue-300",
-        label: "Sistem",
+        label: "Pengingat",
         labelBg: "bg-blue-50",
         labelText: "text-blue-700",
     },
@@ -87,19 +87,17 @@ const DEFAULT_CONFIG = TYPE_CONFIG.system;
 
 // ─── Detail chips ─────────────────────────────────────────────────────────────
 
-function ClassificationDetail({ data, confidence }: { data: Record<string, any>; confidence?: number }) {
+function ClassificationDetail({ data }: { data: Record<string, any> }) {
     const suhu = data.Suhu ?? data.suhu;
     const hum = data.Kelembaban ?? data.kelembaban;
     const ammo = data.Amoniak ?? data.amoniak;
     const hari = data["Hari Ke-"] ?? data.hari_ke;
-    const conf = confidence ?? data.confidence;
 
     const chips = [
-        suhu !== undefined && { icon: <Thermometer className="w-3 h-3" />, label: `${suhu}°C`, color: "text-red-600" },
-        hum !== undefined && { icon: <Droplets className="w-3 h-3" />, label: `${hum}%`, color: "text-blue-600" },
-        ammo !== undefined && { icon: <Wind className="w-3 h-3" />, label: `NH₃ ${typeof ammo === "number" ? ammo.toFixed(3) : ammo} ppm`, color: "text-purple-600" },
+        suhu !== undefined && { icon: <Thermometer className="w-3 h-3" />, label: `Suhu ${suhu}°C`, color: "text-red-600" },
+        hum !== undefined && { icon: <Droplets className="w-3 h-3" />, label: `Kelembaban ${hum}%`, color: "text-blue-600" },
+        ammo !== undefined && { icon: <Wind className="w-3 h-3" />, label: `Amoniak ${typeof ammo === "number" ? ammo.toFixed(3) : ammo} ppm`, color: "text-purple-600" },
         hari !== undefined && { icon: null, label: `Hari ke-${hari}`, color: "text-gray-600" },
-        conf !== undefined && { icon: null, label: `Confidence ${(conf * 100).toFixed(1)}%`, color: "text-gray-600" },
     ].filter(Boolean) as { icon: React.ReactNode; label: string; color: string }[];
 
     if (chips.length === 0) return null;
@@ -117,7 +115,6 @@ function ClassificationDetail({ data, confidence }: { data: Record<string, any>;
 
 function ForecastDetail({ data }: { data: Record<string, any> }) {
     const death = data.predicted_death;
-    const raw = data.raw_prediction;
     if (death === undefined) return null;
 
     return (
@@ -125,11 +122,6 @@ function ForecastDetail({ data }: { data: Record<string, any> }) {
             <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 bg-red-50 border border-red-100 rounded-lg text-red-700 font-semibold">
                 <HeartCrack className="w-3 h-3" />{death} ekor diprediksi
             </span>
-            {raw !== undefined && (
-                <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 bg-gray-50 border border-gray-100 rounded-lg text-gray-500">
-                    Raw: {Number(raw).toFixed(4)}
-                </span>
-            )}
         </div>
     );
 }
@@ -279,7 +271,11 @@ export default function NotificationsPage() {
     const notifications = notifData?.items ?? [];
     const totalPages = notifData?.total_pages ?? 1;
     const total = notifData?.total ?? 0;
-    const globalUnread = notifData?.unread_count ?? 0;
+    const serverUnread = notifData?.unread_count ?? 0;
+
+    const [localUnreadDelta, setLocalUnreadDelta] = useState(0);
+    useEffect(() => { setLocalUnreadDelta(0); }, [notifData]);
+    const effectiveUnread = Math.max(0, serverUnread - localUnreadDelta);
 
     const filtered = filter === "unread"
         ? notifications.filter(n => !n.is_read && !localReadIds.has(n.id))
@@ -290,6 +286,7 @@ export default function NotificationsPage() {
 
     const handleMarkAsRead = async (id: string) => {
         setLocalReadIds(prev => new Set([...prev, id]));
+        setLocalUnreadDelta(prev => prev + 1);
         await markAsRead(id);
     };
 
@@ -323,14 +320,14 @@ export default function NotificationsPage() {
                 <div>
                     <h1 className="text-xl font-bold text-gray-900">Notifikasi</h1>
                     <p className="text-sm text-gray-500 mt-0.5">
-                        {globalUnread > 0
-                            ? <span><span className="font-semibold text-green-600">{globalUnread}</span> belum dibaca</span>
+                        {effectiveUnread > 0
+                            ? <span><span className="font-semibold text-green-600">{effectiveUnread}</span> belum dibaca</span>
                             : "Semua notifikasi sudah dibaca"
                         }
                     </p>
                 </div>
                 <div className="flex items-center gap-2">
-                    {globalUnread > 0 && (
+                    {effectiveUnread > 0 && (
                         <button
                             onClick={handleMarkAllAsRead}
                             disabled={markingAll}
@@ -394,9 +391,9 @@ export default function NotificationsPage() {
                                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all inline-flex items-center gap-1.5 ${filter === "unread" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
                             >
                                 Belum Dibaca
-                                {globalUnread > 0 && (
+                                {effectiveUnread > 0 && (
                                     <span className="inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 text-[10px] font-bold bg-green-600 text-white rounded-full leading-none">
-                                        {globalUnread > 99 ? "99+" : globalUnread}
+                                        {effectiveUnread > 99 ? "99+" : effectiveUnread}
                                     </span>
                                 )}
                             </button>

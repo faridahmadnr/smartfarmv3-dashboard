@@ -10,30 +10,47 @@ const getActionLabel = (action: string) => {
     const labels: Record<string, string> = {
         login: "Login",
         logout: "Logout",
-        create_user: "Create User",
-        update_user: "Update User",
-        delete_user: "Delete User",
-        create_kandang: "Create Kandang",
-        update_kandang: "Update Kandang",
-        delete_kandang: "Delete Kandang",
-        create_sensor_data: "Input Sensor Data",
-        update_sensor_data: "Update Sensor Data",
-        delete_sensor_data: "Delete Sensor Data",
-        change_password: "Change Password",
-        classify: "Klasifikasi ML",
-        forecast: "Forecasting ML",
-        reload_models: "Reload Models",
+        create_user: "Tambah Pengguna",
+        update_user: "Edit Pengguna",
+        delete_user: "Hapus Pengguna",
+        change_password: "Ganti Password",
+        create_daily_log: "Input Log Harian",
+        update_daily_log: "Update Log Harian",
+        create_death_report: "Lapor Kematian",
+        classify: "Prediksi Klasifikasi",
+        forecast: "Prediksi Kematian",
+        reload_models: "Reload Model ML",
     };
     return labels[action] || action;
 };
 
 const getActionColor = (action: string): "default" | "success" | "warning" | "danger" | "info" => {
-    if (action.startsWith("create") || action === "login") return "success";
+    if (action === "login" || action.startsWith("create")) return "success";
     if (action.startsWith("update") || action === "change_password") return "info";
     if (action.startsWith("delete")) return "danger";
     if (action === "classify" || action === "forecast") return "warning";
     return "default";
 };
+
+const getActivityDescription = (log: ActivityLog) => {
+    const name = log.user_full_name || log.user_username || "Pengguna";
+    switch (log.action) {
+        case "login":               return `${name} masuk ke sistem`;
+        case "logout":              return `${name} keluar dari sistem`;
+        case "create_user":         return `${name} menambahkan pengguna baru`;
+        case "update_user":         return `${name} memperbarui data pengguna`;
+        case "delete_user":         return `${name} menghapus pengguna`;
+        case "change_password":     return `${name} mengganti password`;
+        case "create_daily_log":    return `${name} menginput log harian`;
+        case "update_daily_log":    return `${name} memperbarui log harian`;
+        case "create_death_report": return `${name} melaporkan kematian ayam`;
+        case "classify":            return `Sistem menjalankan prediksi kondisi kandang`;
+        case "forecast":            return `Sistem menjalankan prediksi kematian`;
+        case "reload_models":       return `${name} me-reload model ML`;
+        default: return log.action;
+    }
+};
+
 
 const formatDate = (dateString: string) => {
     return new Date(dateString).toLocaleString("id-ID", {
@@ -149,8 +166,7 @@ export default function ActivityLogsPage() {
                                     <tr className="border-b border-gray-200">
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">User</th>
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Action</th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Resource</th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Details</th>
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Keterangan</th>
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Platform</th>
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">IP Address</th>
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Time</th>
@@ -182,16 +198,7 @@ export default function ActivityLogsPage() {
                                                 </Badge>
                                             </td>
                                             <td className="py-4 px-6">
-                                                <span className="text-sm text-gray-600 capitalize">{log.resource || "-"}</span>
-                                            </td>
-                                            <td className="py-4 px-6">
-                                                <p className="text-sm text-gray-600 max-w-xs truncate">
-                                                    {log.details
-                                                        ? typeof log.details === "object"
-                                                            ? JSON.stringify(log.details)
-                                                            : log.details
-                                                        : "-"}
-                                                </p>
+                                                <p className="text-sm text-gray-600">{getActivityDescription(log)}</p>
                                             </td>
                                             <td className="py-4 px-6">
                                                 <div className="flex items-center gap-2">
