@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { useSession } from "next-auth/react";
 import {
     Thermometer, Droplets, Wind, Users, HeartCrack,
@@ -107,7 +107,7 @@ export default function SensorDataPage() {
     const [chartAppliedStart, setChartAppliedStart] = useState(() => get6hRange().start);
     const [chartAppliedEnd, setChartAppliedEnd] = useState(() => get6hRange().end);
 
-    const applyPreset = (preset: "6h" | "today" | "7d" | "30d" | "custom") => {
+    const applyPreset = useCallback((preset: "6h" | "today" | "7d" | "30d" | "custom") => {
         setChartPreset(preset);
         if (preset === "custom") return;
         if (preset === "6h") {
@@ -126,7 +126,7 @@ export default function SensorDataPage() {
         }
         setChartAppliedStart(`${startStr}T00:00:00`);
         setChartAppliedEnd(`${todayStr}T23:59:59`);
-    };
+    }, []);
     const applyChartCustom = () => {
         setChartAppliedStart(chartCustomStart ? `${chartCustomStart}T00:00:00` : "");
         setChartAppliedEnd(chartCustomEnd ? `${chartCustomEnd}T23:59:59` : "");
@@ -141,7 +141,7 @@ export default function SensorDataPage() {
     });
 
     // Chart data (large fetch, uses chart-specific filter)
-    const { data: chartApiData, loading: chartLoading } = useSensorData({
+    const { data: chartApiData, loading: chartLoading, refetch: refetchChart } = useSensorData({
         page: 1,
         page_size: 500,
         start_date: chartAppliedStart || undefined,
@@ -149,7 +149,20 @@ export default function SensorDataPage() {
     });
 
     const { mutate: createSensorData, loading: creating } = useCreateSensorData();
-    const { connected, liveReadings, lastReceived } = useLiveSensorData();
+
+    const chartPresetRef = useRef(chartPreset);
+    chartPresetRef.current = chartPreset;
+
+    const handleNewData = useCallback(() => {
+        refetch();
+        if (chartPresetRef.current !== "custom") {
+            // Re-apply preset to update date range, useSensorData auto-refetches on param change
+            applyPreset(chartPresetRef.current);
+        } else {
+            refetchChart();
+        }
+    }, [refetch, refetchChart, applyPreset]);
+    const { connected, liveReadings, lastReceived } = useLiveSensorData(handleNewData);
 
     // ── Form / Edit state ─────────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState<"charts" | "table">("charts");
