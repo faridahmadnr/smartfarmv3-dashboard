@@ -1272,6 +1272,34 @@ export function useDeathReports() {
     return { data, loading, error, refetch };
 }
 
+export function useTodayDeathTotal() {
+    const { data: session, status } = useSession();
+    const [total, setTotal] = useState<number>(0);
+    const [loading, setLoading] = useState(true);
+
+    const refetch = useCallback(async () => {
+        if (!session?.accessToken) { setLoading(false); return; }
+        setLoading(true);
+        try {
+            const res: any = await deathReportsApi.getTodayTotal(session.accessToken);
+            const d = res?.data ?? res;
+            setTotal(typeof d?.total === "number" ? d.total : (typeof d === "number" ? d : 0));
+        } catch {
+            setTotal(0);
+        } finally {
+            setLoading(false);
+        }
+    }, [session?.accessToken]);
+
+    useEffect(() => {
+        if (status === "loading") return;
+        if (status === "authenticated" && session?.accessToken) refetch();
+        else setLoading(false);
+    }, [status, session?.accessToken, refetch]);
+
+    return { total, loading, refetch };
+}
+
 // WebSocket Notification hook
 export function useNotificationWebSocket(
     onNotification?: (notification: any) => void

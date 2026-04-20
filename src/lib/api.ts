@@ -373,10 +373,12 @@ export const predictionsApi = {
         });
     },
 
-    getHistory: async (params?: { type?: string; limit?: number }, token?: string) => {
+    getHistory: async (params?: { type?: string; limit?: number; start_date?: string; end_date?: string }, token?: string) => {
         const searchParams = new URLSearchParams();
         if (params?.type) searchParams.set("type", params.type);
         if (params?.limit) searchParams.set("limit", params.limit.toString());
+        if (params?.start_date) searchParams.set("start_date", params.start_date);
+        if (params?.end_date) searchParams.set("end_date", params.end_date);
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/predictions/history${query ? `?${query}` : ""}`, { token });
     },

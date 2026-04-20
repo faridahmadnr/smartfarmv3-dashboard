@@ -12,7 +12,7 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useMyKandang, useNotifications, useSensorData, useTodayDailyLog } from "@/hooks/useApi";
+import { useMyKandang, useNotifications, useSensorData, useTodayDailyLog, useTodayDeathTotal } from "@/hooks/useApi";
 import { useLiveSensorData } from "@/hooks/useLiveSensorData";
 import { DeathReportModal } from "@/components/modals/DeathReportModal";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
@@ -60,6 +60,7 @@ export default function DashboardPage() {
     const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData();
 
     const { data: todayLog } = useTodayDailyLog();
+    const { total: todayDeathTotal, refetch: refetchDeathTotal } = useTodayDeathTotal();
     const [showDeathModal, setShowDeathModal] = useState(false);
     const [showDailyModal, setShowDailyModal] = useState(false);
 
@@ -182,9 +183,9 @@ export default function DashboardPage() {
                 <StatCard label="Populasi" value={latestSensor?.populasi?.toLocaleString() ?? "-"} unit="ekor"
                     icon={<Users className="w-4 h-4" />} iconBg="bg-emerald-50" iconColor="text-emerald-500" topBar="bg-emerald-400"
                     loading={loadingKandang} />
-                <StatCard label="Kematian" value={latestSensor?.death != null ? String(latestSensor.death) : "0"} unit="ekor"
+                <StatCard label="Kematian Hari Ini" value={String(todayDeathTotal)} unit="ekor"
                     icon={<HeartCrack className="w-4 h-4" />} iconBg="bg-red-50" iconColor="text-red-500" topBar="bg-red-400"
-                    loading={loadingKandang} alert={latestSensor ? (latestSensor.death ?? 0) > 0 : false} />
+                    loading={loadingKandang} alert={todayDeathTotal > 0} />
             </div>
 
             {/* ML Prediction Cards */}
@@ -410,7 +411,7 @@ export default function DashboardPage() {
             </div>
 
             {/* Modals */}
-            <DeathReportModal open={showDeathModal} onClose={() => setShowDeathModal(false)} />
+            <DeathReportModal open={showDeathModal} onClose={() => setShowDeathModal(false)} onSuccess={refetchDeathTotal} />
             <DailyLogModal open={showDailyModal} onClose={() => setShowDailyModal(false)} />
         </div>
     );
