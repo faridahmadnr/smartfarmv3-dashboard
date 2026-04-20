@@ -438,7 +438,7 @@ export default function PredictionsPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            {["Waktu", "Hasil", "Confidence", "Suhu", "Kelembaban", "NH₃ (ppm)"].map(h => (
+                                            {["Waktu", "Hasil", "Confidence", "Suhu", "Kelembaban", "Amoniak (ppm)"].map(h => (
                                                 <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
                                             ))}
                                         </tr>
