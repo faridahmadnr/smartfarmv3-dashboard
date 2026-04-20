@@ -51,12 +51,18 @@ function timeAgo(ts: string) {
 function ConfidenceBar({ value }: { value: number }) {
     const pct = Math.round(value * 100);
     const color = pct >= 90 ? "bg-green-500" : pct >= 70 ? "bg-yellow-400" : "bg-red-400";
+    const label = pct >= 90 ? "sangat yakin" : pct >= 70 ? "cukup yakin" : "kurang yakin";
     return (
         <div className="flex items-center gap-2">
             <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
                 <div className={`h-full rounded-full ${color}`} style={{ width: `${pct}%` }} />
             </div>
-            <span className="text-xs font-semibold tabular-nums text-gray-700">{pct}%</span>
+            <span
+                className="text-xs font-semibold tabular-nums text-gray-700 cursor-help underline decoration-dotted decoration-gray-300"
+                title={`Keyakinan model: ${pct}% (${label}) — semakin tinggi, semakin yakin model terhadap hasil prediksinya`}
+            >
+                {pct}%
+            </span>
         </div>
     );
 }
@@ -268,8 +274,7 @@ export default function PredictionsPage() {
                                     </div>
                                 </div>
                                 {latestClassify.confidence !== null && (
-                                    <div className="space-y-1">
-                                        <p className="text-xs text-gray-400">Confidence</p>
+                                    <div title="Tingkat keyakinan model terhadap prediksi ini">
                                         <ConfidenceBar value={latestClassify.confidence} />
                                     </div>
                                 )}
@@ -279,13 +284,10 @@ export default function PredictionsPage() {
                                             <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Suhu {latestClassify.input_data.suhu}°C</span>
                                         )}
                                         {latestClassify.input_data.kelembaban !== undefined && (
-                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Hum {latestClassify.input_data.kelembaban}%</span>
+                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Kelembaban {latestClassify.input_data.kelembaban}%</span>
                                         )}
                                         {latestClassify.input_data.amoniak !== undefined && (
-                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">NH₃ {Number(latestClassify.input_data.amoniak).toFixed(3)}</span>
-                                        )}
-                                        {latestClassify.input_data.hari_ke !== undefined && (
-                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">H-{latestClassify.input_data.hari_ke}</span>
+                                            <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Amoniak {Number(latestClassify.input_data.amoniak).toFixed(3)}</span>
                                         )}
                                     </div>
                                 )}
@@ -328,16 +330,18 @@ export default function PredictionsPage() {
                                         <p className="text-xs text-gray-400">{formatTime(latestForecast.created_at)}</p>
                                     </div>
                                 </div>
-                                <div className="flex flex-wrap gap-2 pt-1">
-                                    {latestForecast.raw_prediction !== null && (
-                                        <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">
-                                            Raw: {Number(latestForecast.raw_prediction).toFixed(4)}
-                                        </span>
-                                    )}
-                                    <span className={`text-[11px] rounded-lg px-2 py-0.5 font-medium border ${(latestForecast.predicted_death ?? 0) > 0 ? "bg-red-50 text-red-600 border-red-100" : "bg-green-50 text-green-700 border-green-100"}`}>
-                                        {(latestForecast.predicted_death ?? 0) > 0 ? "Ada Risiko" : "Tidak Ada Risiko"}
-                                    </span>
-                                </div>
+                                {(() => {
+                                    const history: any[] = latestForecast.input_data?.sensor_history ?? [];
+                                    const last = history[history.length - 1];
+                                    if (!last) return null;
+                                    return (
+                                        <div className="flex flex-wrap gap-2 pt-1">
+                                            {last.temp !== undefined && <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Suhu {last.temp}°C</span>}
+                                            {last.hum !== undefined && <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Kelembaban {last.hum}%</span>}
+                                            {last.ammo !== undefined && <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Amoniak {Number(last.ammo).toFixed(3)}</span>}
+                                        </div>
+                                    );
+                                })()}
                             </div>
                         ) : (
                             <div className="py-4 text-center">
@@ -435,12 +439,14 @@ export default function PredictionsPage() {
                     ) : activeTab === "classification" ? (
                         <>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
+                                <table className="w-full text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            {["Waktu", "Hasil", "Confidence", "Suhu", "Kelembaban", "Amoniak (ppm)"].map(h => (
-                                                <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
-                                            ))}
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[20%]">Waktu</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[25%]">Hasil</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[18%]">Suhu</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[18%]">Kelembaban</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[19%]">Amoniak (ppm)</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
@@ -451,13 +457,17 @@ export default function PredictionsPage() {
                                                 <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
                                                     <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{formatTime(r.created_at)}</td>
                                                     <td className="py-3 px-4">
-                                                        <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${isAbn ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}>
-                                                            {isAbn ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                                                            {r.prediction ?? "—"}
-                                                        </span>
-                                                    </td>
-                                                    <td className="py-3 px-4 w-36">
-                                                        {r.confidence !== null ? <ConfidenceBar value={r.confidence} /> : <span className="text-xs text-gray-300">—</span>}
+                                                        <div className="space-y-1.5">
+                                                            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${isAbn ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}>
+                                                                {isAbn ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                                                                {r.prediction ?? "—"}
+                                                            </span>
+                                                            {r.confidence !== null && (
+                                                                <div className="w-28" title="Tingkat keyakinan model terhadap prediksi ini">
+                                                                    <ConfidenceBar value={r.confidence} />
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.suhu ?? inp["Suhu"] ?? "—"}{inp.suhu !== undefined || inp["Suhu"] !== undefined ? "°C" : ""}</td>
                                                     <td className="py-3 px-4 text-gray-700 tabular-nums">{inp.kelembaban ?? inp["Kelembaban"] !== undefined ? `${inp.kelembaban ?? inp["Kelembaban"]}%` : "—"}</td>
@@ -475,12 +485,14 @@ export default function PredictionsPage() {
                     ) : (
                         <>
                             <div className="overflow-x-auto">
-                                <table className="w-full text-sm">
+                                <table className="w-full text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            {["Waktu Prediksi", "Prediksi Kematian", "Risiko", "Raw Score", "Input Data"].map(h => (
-                                                <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
-                                            ))}
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[14%]">Waktu Prediksi</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[12%]">Prediksi Kematian</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[10%]">Risiko</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[10%]">Raw Score</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left w-[54%]">Input Data</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
@@ -517,7 +529,9 @@ export default function PredictionsPage() {
                                                         })()}
                                                     </td>
                                                     <td className="py-3 px-4 text-xs text-gray-500 tabular-nums">
-                                                        {r.raw_prediction !== null ? Number(r.raw_prediction).toFixed(4) : "—"}
+                                                        {r.raw_prediction !== null && r.raw_prediction !== undefined
+                                                            ? Number(r.raw_prediction).toFixed(4)
+                                                            : "—"}
                                                     </td>
                                                     <td className="py-3 px-4">
                                                         {history.length > 0 ? (
