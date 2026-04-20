@@ -318,12 +318,12 @@ export default function PredictionsPage() {
 
                         {latestForecast ? (
                             <div className="space-y-3">
-                                <div className="flex items-center gap-3">
+                                <div className="flex items-center justify-center gap-3">
                                     {(latestForecast.predicted_death ?? 0) > 0
                                         ? <HeartCrack className="w-8 h-8 text-red-500 flex-shrink-0" />
                                         : <CheckCircle2 className="w-8 h-8 text-green-500 flex-shrink-0" />
                                     }
-                                    <div>
+                                    <div className="text-center">
                                         <p className={`text-2xl font-bold ${(latestForecast.predicted_death ?? 0) > 0 ? "text-red-600" : "text-green-600"}`}>
                                             {(latestForecast.predicted_death ?? 0) > 0 ? `${latestForecast.predicted_death} kematian` : "Aman"}
                                         </p>

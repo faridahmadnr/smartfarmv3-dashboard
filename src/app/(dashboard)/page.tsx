@@ -55,7 +55,7 @@ function getRiskLevel(predictedDeath: number) {
 export default function DashboardPage() {
     const { status } = useSession();
     const { data: session } = useSession();
-    const { data: kandang, loading: loadingKandang } = useMyKandang();
+    const { data: kandang, loading: loadingKandang, refetch: refetchKandang } = useMyKandang();
     const { data: notifData, loading: loadingNotif } = useNotifications();
     const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData();
 
@@ -71,21 +71,28 @@ export default function DashboardPage() {
 
     const latestSensor = kandang?.latest_sensor;
 
-    const onNewData = useCallback(() => { refetchSensor(); }, [refetchSensor]);
+    const fetchPredictions = useCallback(async () => {
+        if (!session?.accessToken) return;
+        try {
+            const res: any = await predictionsApi.getHistory({ limit: 20 }, session.accessToken);
+            const items: any[] = Array.isArray(res?.data) ? res.data
+                : (Array.isArray(res?.data?.data) ? res.data.data : []);
+            setLatestClassify(items.find((r: any) => r.type === "classification") ?? null);
+            setLatestForecast(items.find((r: any) => r.type === "forecasting") ?? null);
+        } catch { /* ignore */ }
+    }, [session?.accessToken]);
+
+    const onNewData = useCallback(() => {
+        refetchSensor();
+        refetchKandang();
+        fetchPredictions();
+    }, [refetchSensor, refetchKandang, fetchPredictions]);
     useLiveSensorData(onNewData);
 
     useEffect(() => {
         if (status !== "authenticated" || !session?.accessToken) return;
-        predictionsApi.getHistory({ limit: 20 }, session.accessToken)
-            .then((res: any) => {
-                const items: any[] = Array.isArray(res?.data) ? res.data
-                    : (Array.isArray(res?.data?.data) ? res.data.data : []);
-                setLatestClassify(items.find(r => r.type === "classification") ?? null);
-                setLatestForecast(items.find(r => r.type === "forecasting") ?? null);
-            })
-            .catch(() => {})
-            .finally(() => setLoadingPred(false));
-    }, [status, session?.accessToken]);
+        fetchPredictions().finally(() => setLoadingPred(false));
+    }, [status, session?.accessToken, fetchPredictions]);
 
     if (status === "loading") {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>;
@@ -159,12 +166,10 @@ export default function DashboardPage() {
                         <BookOpen className="w-3.5 h-3.5" />Input Harian
                     </button>
                     {kandang && (
-                        <div className="flex items-center gap-1.5">
+                        <Badge variant={kandangStatus.variant} className="flex items-center gap-1.5 text-xs px-2.5 py-1">
                             <span className={`w-2 h-2 rounded-full animate-pulse ${kandangStatus.dot}`} />
-                            <Badge variant={kandangStatus.variant} className="text-xs px-2.5 py-1">
-                                Kondisi {kandangStatus.label}
-                            </Badge>
-                        </div>
+                            Kondisi {kandangStatus.label}
+                        </Badge>
                     )}
                 </div>
             </div>
