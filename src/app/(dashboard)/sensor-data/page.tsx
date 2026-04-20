@@ -67,7 +67,7 @@ export default function SensorDataPage() {
     const { data: session, status } = useSession();
     const { data: kandang, loading: loadingKandang } = useMyKandang();
 
-    // ── All filter/pagination state declared first (needed by useSensorData) ──
+    // ── TABLE filter state (collapsible panel, independent of chart) ─────────
     const [currentPage, setCurrentPage] = useState(1);
     const [pageSize, setPageSize] = useState(10);
     const [sortKey, setSortKey] = useState<SortKey>("timestamp");
@@ -78,9 +78,7 @@ export default function SensorDataPage() {
     const [endInput, setEndInput] = useState("");
     const [appliedStart, setAppliedStart] = useState("");
     const [appliedEnd, setAppliedEnd] = useState("");
-
-    // Reset page when date filter changes
-    useEffect(() => { setCurrentPage(1); }, []);
+    const [showFilters, setShowFilters] = useState(false);
 
     const applyDateFilter = () => {
         setAppliedStart(startInput ? `${startInput}T00:00:00` : "");
@@ -92,12 +90,24 @@ export default function SensorDataPage() {
         setAppliedStart(""); setAppliedEnd("");
         setHariKeFilter("");
         setStatusFilter("all");
-        setChartPreset("all");
         setCurrentPage(1);
     };
+    const hasActiveFilter = !!(appliedStart || appliedEnd || hariKeFilter || statusFilter !== "all");
+
+    // ── CHART filter state (preset buttons, independent of table) ─────────────
+    const [chartPreset, setChartPreset] = useState<"all" | "today" | "7d" | "30d" | "custom">("all");
+    const [chartCustomStart, setChartCustomStart] = useState("");
+    const [chartCustomEnd, setChartCustomEnd] = useState("");
+    const [chartAppliedStart, setChartAppliedStart] = useState("");
+    const [chartAppliedEnd, setChartAppliedEnd] = useState("");
+
     const applyPreset = (preset: "all" | "today" | "7d" | "30d" | "custom") => {
         setChartPreset(preset);
-        if (preset === "all") { resetDateFilter(); return; }
+        if (preset === "all") {
+            setChartAppliedStart(""); setChartAppliedEnd("");
+            setChartCustomStart(""); setChartCustomEnd("");
+            return;
+        }
         if (preset === "custom") return;
         const now = new Date();
         const todayStr = now.toISOString().split("T")[0];
@@ -108,21 +118,28 @@ export default function SensorDataPage() {
         } else if (preset === "30d") {
             startStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
         }
-        setStartInput(startStr); setEndInput(todayStr);
-        setAppliedStart(`${startStr}T00:00:00`);
-        setAppliedEnd(`${todayStr}T23:59:59`);
-        setCurrentPage(1);
+        setChartAppliedStart(`${startStr}T00:00:00`);
+        setChartAppliedEnd(`${todayStr}T23:59:59`);
     };
-    const hasActiveFilter = appliedStart || appliedEnd || hariKeFilter || statusFilter !== "all";
+    const applyChartCustom = () => {
+        setChartAppliedStart(chartCustomStart ? `${chartCustomStart}T00:00:00` : "");
+        setChartAppliedEnd(chartCustomEnd ? `${chartCustomEnd}T23:59:59` : "");
+    };
 
-    const [showFilters, setShowFilters] = useState(false);
-    const [chartPreset, setChartPreset] = useState<"all" | "today" | "7d" | "30d" | "custom">("all");
-
+    // Table data (paginated, uses table-specific filter)
     const { data: sensorData, loading, isFetching, error, refetch } = useSensorData({
         page: currentPage,
         page_size: pageSize,
         start_date: appliedStart || undefined,
         end_date: appliedEnd || undefined,
+    });
+
+    // Chart data (large fetch, uses chart-specific filter)
+    const { data: chartApiData, loading: chartLoading } = useSensorData({
+        page: 1,
+        page_size: 500,
+        start_date: chartAppliedStart || undefined,
+        end_date: chartAppliedEnd || undefined,
     });
 
     const { mutate: createSensorData, loading: creating } = useCreateSensorData();
@@ -203,13 +220,19 @@ export default function SensorDataPage() {
         totalDeath: rawData.reduce((a: number, b: any) => a + (b.death || 0), 0),
     } : null;
 
-    // ── Chart data ────────────────────────────────────────────────────────────
-    const chartData = useMemo(() => [...rawData].reverse().map((row: any) => ({
-        time: new Date(row.timestamp).toLocaleString("id-ID", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" }),
-        suhu: row.suhu, kelembaban: row.kelembaban, amoniak: row.amoniak,
-        populasi: row.populasi, death: row.death ?? 0,
-        pakan: row.pakan ?? 0, minum: row.minum ?? 0,
-    })), [rawData]);
+    // ── Chart data (uses large-page fetch + live readings) ───────────────────
+    const chartData = useMemo(() => {
+        const apiItems = chartApiData?.items || [];
+        const apiIds = new Set(apiItems.map((r: any) => r.id));
+        const uniqueLive = liveReadings.filter(lr => !apiIds.has(lr.id));
+        const merged = [...uniqueLive, ...apiItems];
+        return [...merged].reverse().map((row: any) => ({
+            time: new Date(row.timestamp).toLocaleString("id-ID", { hour: "2-digit", minute: "2-digit", day: "2-digit", month: "short" }),
+            suhu: row.suhu, kelembaban: row.kelembaban, amoniak: row.amoniak,
+            populasi: row.populasi, death: row.death ?? 0,
+            pakan: row.pakan ?? 0, minum: row.minum ?? 0,
+        }));
+    }, [chartApiData, liveReadings]);
 
     const tooltipStyle = {
         backgroundColor: "#fff", border: "1px solid #e5e7eb",
@@ -383,43 +406,45 @@ export default function SensorDataPage() {
                 </div>
             )}
 
-            {/* Quick Preset Filter */}
-            <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Periode:</span>
-                {([
-                    { id: "today", label: "Hari ini" },
-                    { id: "7d", label: "7 Hari" },
-                    { id: "30d", label: "Bulan ini" },
-                    { id: "custom", label: "Custom" },
-                ] as const).map(p => (
-                    <button
-                        key={p.id}
-                        onClick={() => applyPreset(p.id)}
-                        className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${chartPreset === p.id ? "bg-green-600 text-white border-green-600" : "border-gray-200 text-gray-600 hover:bg-gray-50 bg-white"}`}
-                    >
-                        {p.label}
-                    </button>
-                ))}
-                {chartPreset === "custom" && (
-                    <div className="flex items-center gap-2 ml-1">
-                        <input type="date" value={startInput} onChange={e => setStartInput(e.target.value)}
-                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600" />
-                        <span className="text-gray-300">–</span>
-                        <input type="date" value={endInput} onChange={e => setEndInput(e.target.value)}
-                            className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600" />
-                        <button onClick={applyDateFilter}
-                            className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors">
-                            Terapkan
+            {/* Chart Preset Filter — only visible in charts tab */}
+            {activeTab === "charts" && (
+                <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-semibold text-gray-400 uppercase tracking-wide mr-1">Periode:</span>
+                    {([
+                        { id: "today", label: "Hari ini" },
+                        { id: "7d", label: "7 Hari" },
+                        { id: "30d", label: "Bulan ini" },
+                        { id: "custom", label: "Custom" },
+                    ] as const).map(p => (
+                        <button
+                            key={p.id}
+                            onClick={() => applyPreset(p.id)}
+                            className={`text-xs px-3 py-1.5 rounded-lg border font-medium transition-colors ${chartPreset === p.id ? "bg-green-600 text-white border-green-600" : "border-gray-200 text-gray-600 hover:bg-gray-50 bg-white"}`}
+                        >
+                            {p.label}
                         </button>
-                    </div>
-                )}
-                {(appliedStart || appliedEnd) && chartPreset !== "custom" && (
-                    <button onClick={() => applyPreset("all")}
-                        className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 bg-white px-2.5 py-1.5 rounded-lg transition-colors">
-                        <RotateCcw className="w-3 h-3" /> Reset
-                    </button>
-                )}
-            </div>
+                    ))}
+                    {chartPreset === "custom" && (
+                        <div className="flex items-center gap-2 ml-1">
+                            <input type="date" value={chartCustomStart} onChange={e => setChartCustomStart(e.target.value)}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600" />
+                            <span className="text-gray-300">–</span>
+                            <input type="date" value={chartCustomEnd} onChange={e => setChartCustomEnd(e.target.value)}
+                                className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600" />
+                            <button onClick={applyChartCustom}
+                                className="text-xs bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg transition-colors">
+                                Terapkan
+                            </button>
+                        </div>
+                    )}
+                    {(chartAppliedStart || chartAppliedEnd) && chartPreset !== "custom" && (
+                        <button onClick={() => applyPreset("all")}
+                            className="flex items-center gap-1 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 bg-white px-2.5 py-1.5 rounded-lg transition-colors">
+                            <RotateCcw className="w-3 h-3" /> Reset
+                        </button>
+                    )}
+                </div>
+            )}
 
             {/* Success */}
             {formSuccess && (
@@ -463,7 +488,7 @@ export default function SensorDataPage() {
                                     { label: "Suhu (°C)", name: "suhu", step: "0.1", placeholder: "28.5" },
                                     { label: "Kelembaban (%)", name: "kelembaban", step: "0.1", placeholder: "72" },
                                     { label: "Amoniak (ppm)", name: "amoniak", step: "0.001", placeholder: "3.2" },
-                                    { label: "Bobot (kg)", name: "bobot", step: "0.01", placeholder: "1.2" },
+                                    { label: "Bobot (g)", name: "bobot", step: "1", placeholder: "58" },
                                 ].map(f => (
                                     <div key={f.name}>
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
@@ -501,7 +526,7 @@ export default function SensorDataPage() {
 
             {/* ── CHARTS VIEW ──────────────────────────────────────────────── */}
             {activeTab === "charts" && (
-                loading ? (
+                chartLoading ? (
                     <div className="flex justify-center py-8">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
                     </div>
@@ -779,10 +804,10 @@ export default function SensorDataPage() {
                                             <ThSort col="hari_ke" label="Hari" />
                                             <ThSort col="timestamp" label="Waktu" />
                                             <ThSort col="suhu" label="Suhu" />
-                                            <ThSort col="kelembaban" label="Hum" />
-                                            <ThSort col="amoniak" label="NH₃" />
-                                            <ThSort col="populasi" label="Pop" />
-                                            <ThSort col="death" label="Death" />
+                                            <ThSort col="kelembaban" label="Kelembaban" />
+                                            <ThSort col="amoniak" label="Amoniak (ppm)" />
+                                            <ThSort col="populasi" label="Populasi" />
+                                            <ThSort col="death" label="Kematian" />
                                             <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left">Status</th>
                                             {canInput && <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left">Aksi</th>}
                                         </tr>
@@ -916,7 +941,7 @@ export default function SensorDataPage() {
                                 {[
                                     { label: "Pakan (kg)", name: "pakan", step: "0.1" },
                                     { label: "Minum (L)", name: "minum", step: "0.1" },
-                                    { label: "Bobot (kg)", name: "bobot", step: "0.01" },
+                                    { label: "Bobot (g)", name: "bobot", step: "1" },
                                     { label: "Populasi", name: "populasi", step: "1" },
                                 ].map(f => (
                                     <div key={f.name}>

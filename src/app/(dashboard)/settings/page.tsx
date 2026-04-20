@@ -7,8 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Toast, useToast } from "@/components/ui/toast";
-import { authApi } from "@/lib/api";
-import { useMyActivityLogs, ActivityLog } from "@/hooks/useApi";
+import { authApi, kandangApi } from "@/lib/api";
+import { useMyActivityLogs, useMyKandang, ActivityLog } from "@/hooks/useApi";
 
 export default function SettingsPage() {
     const { data: session, status } = useSession();
@@ -24,6 +24,43 @@ export default function SettingsPage() {
 
     const [phoneInput, setPhoneInput] = useState("");
     const [savingPhone, setSavingPhone] = useState(false);
+
+    const { data: kandang, refetch: refetchKandang } = useMyKandang();
+    const [kandangForm, setKandangForm] = useState({ nama: "", lokasi: "", kapasitas: "", deskripsi: "" });
+    const [savingKandang, setSavingKandang] = useState(false);
+    const [kandangError, setKandangError] = useState("");
+
+    useEffect(() => {
+        if (kandang) {
+            setKandangForm({
+                nama: kandang.nama ?? "",
+                lokasi: kandang.lokasi ?? "",
+                kapasitas: kandang.kapasitas != null ? String(kandang.kapasitas) : "",
+                deskripsi: kandang.deskripsi ?? "",
+            });
+        }
+    }, [kandang]);
+
+    const handleKandangSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!kandang?.id) return;
+        setSavingKandang(true);
+        setKandangError("");
+        try {
+            await kandangApi.update(kandang.id, {
+                nama: kandangForm.nama || undefined,
+                lokasi: kandangForm.lokasi || undefined,
+                kapasitas: kandangForm.kapasitas ? parseInt(kandangForm.kapasitas) : undefined,
+                deskripsi: kandangForm.deskripsi || undefined,
+            }, session?.accessToken as string);
+            showToast("Informasi kandang berhasil disimpan");
+            refetchKandang();
+        } catch (err: any) {
+            setKandangError(err.message || "Gagal menyimpan informasi kandang");
+        } finally {
+            setSavingKandang(false);
+        }
+    };
 
     const { data: myLogsData, loading: loadingLogs } = useMyActivityLogs({ per_page: 10 });
 
@@ -181,6 +218,63 @@ export default function SettingsPage() {
                                 </div>
                                 <Button type="submit" disabled={savingPhone}>
                                     {savingPhone ? "Menyimpan..." : "Simpan Nomor"}
+                                </Button>
+                            </form>
+                        </CardContent>
+                    </Card>
+
+                    {/* Kandang Info */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6" />
+                                </svg>
+                                Informasi Kandang
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <form onSubmit={handleKandangSubmit} className="space-y-4 max-w-md">
+                                {kandangError && (
+                                    <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
+                                        <p className="text-red-700 text-sm">{kandangError}</p>
+                                    </div>
+                                )}
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nama Kandang</label>
+                                    <Input
+                                        value={kandangForm.nama}
+                                        onChange={e => setKandangForm({ ...kandangForm, nama: e.target.value })}
+                                        placeholder="Kandang Utama"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Lokasi</label>
+                                    <Input
+                                        value={kandangForm.lokasi}
+                                        onChange={e => setKandangForm({ ...kandangForm, lokasi: e.target.value })}
+                                        placeholder="Jl. Contoh No. 1, Kota"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Kapasitas (ekor)</label>
+                                    <Input
+                                        type="number"
+                                        value={kandangForm.kapasitas}
+                                        onChange={e => setKandangForm({ ...kandangForm, kapasitas: e.target.value })}
+                                        placeholder="10000"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Deskripsi</label>
+                                    <Input
+                                        value={kandangForm.deskripsi}
+                                        onChange={e => setKandangForm({ ...kandangForm, deskripsi: e.target.value })}
+                                        placeholder="Deskripsi kandang (opsional)"
+                                    />
+                                </div>
+                                <Button type="submit" disabled={savingKandang}>
+                                    {savingKandang ? "Menyimpan..." : "Simpan Informasi Kandang"}
                                 </Button>
                             </form>
                         </CardContent>

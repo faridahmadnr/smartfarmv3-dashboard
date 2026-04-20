@@ -7,7 +7,7 @@ import {
     ShieldCheck, TrendingUp, HeartCrack,
     CheckCircle2, AlertTriangle, XCircle,
     Activity, Cpu, ChevronDown, ChevronUp,
-    RotateCcw, Info,
+    RotateCcw, Info, Filter, X,
     ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -80,17 +80,27 @@ export default function PredictionsPage() {
     const [historyPage, setHistoryPage] = useState(1);
     const [historyPageSize, setHistoryPageSize] = useState(10);
 
+    // Filter state
+    const [startInput, setStartInput] = useState("");
+    const [endInput, setEndInput] = useState("");
+    const [appliedStart, setAppliedStart] = useState("");
+    const [appliedEnd, setAppliedEnd] = useState("");
+    const [showFilter, setShowFilter] = useState(false);
+
     const isAdmin = session?.user?.role === "admin";
 
     // Reset page on tab change
     useEffect(() => { setHistoryPage(1); }, [activeTab]);
 
     // ── Fetch ────────────────────────────────────────────────────────────────
-    const loadHistory = useCallback(async () => {
+    const loadHistory = useCallback(async (start?: string, end?: string) => {
         if (!session?.accessToken) return;
         setLoadingHistory(true);
         try {
-            const res: any = await predictionsApi.getHistory(undefined, session.accessToken);
+            const params: any = {};
+            if (start) params.start_date = start;
+            if (end) params.end_date = end;
+            const res: any = await predictionsApi.getHistory(params, session.accessToken);
             let items: PredictionRecord[] = [];
             if (Array.isArray(res)) items = res;
             else if (Array.isArray(res?.data)) items = res.data;
@@ -102,6 +112,24 @@ export default function PredictionsPage() {
             setLoadingHistory(false);
         }
     }, [session?.accessToken]);
+
+    const applyFilter = () => {
+        setAppliedStart(startInput);
+        setAppliedEnd(endInput);
+        setHistoryPage(1);
+        loadHistory(startInput || undefined, endInput || undefined);
+    };
+
+    const resetFilter = () => {
+        setStartInput("");
+        setEndInput("");
+        setAppliedStart("");
+        setAppliedEnd("");
+        setHistoryPage(1);
+        loadHistory();
+    };
+
+    const isFiltered = !!(appliedStart || appliedEnd);
 
     useEffect(() => {
         if (status === "authenticated" && session?.accessToken) {
@@ -151,7 +179,7 @@ export default function PredictionsPage() {
             <div className="flex items-center justify-between gap-4">
                 <h1 className="text-xl font-bold text-gray-900">Prediksi Machine Learning</h1>
                 <button
-                    onClick={loadHistory}
+                    onClick={() => loadHistory(appliedStart || undefined, appliedEnd || undefined)}
                     disabled={loadingHistory}
                     className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
@@ -322,7 +350,7 @@ export default function PredictionsPage() {
 
             {/* ── History ─────────────────────────────────────────────────── */}
             <Card>
-                {/* Tabs */}
+                {/* Tabs + Filter toggle */}
                 <div className="flex items-center justify-between gap-4 px-5 pt-4 pb-0">
                     <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
                         <button
@@ -342,7 +370,54 @@ export default function PredictionsPage() {
                             <span className="text-[10px] text-gray-400">{forecastRecords.length}</span>
                         </button>
                     </div>
+                    <button
+                        onClick={() => setShowFilter(v => !v)}
+                        className={`flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-lg border transition-colors ${isFiltered ? "bg-green-50 border-green-200 text-green-700" : "border-gray-200 text-gray-500 hover:text-gray-700 hover:bg-gray-50"}`}
+                    >
+                        <Filter className="w-3.5 h-3.5" />
+                        Filter
+                        {isFiltered && <span className="w-1.5 h-1.5 rounded-full bg-green-500" />}
+                    </button>
                 </div>
+
+                {/* Filter panel */}
+                {showFilter && (
+                    <div className="mx-5 mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-wrap items-end gap-3">
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[11px] font-medium text-gray-500">Dari Tanggal</label>
+                            <input
+                                type="date"
+                                value={startInput}
+                                onChange={e => setStartInput(e.target.value)}
+                                className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                            />
+                        </div>
+                        <div className="flex flex-col gap-1">
+                            <label className="text-[11px] font-medium text-gray-500">Sampai Tanggal</label>
+                            <input
+                                type="date"
+                                value={endInput}
+                                onChange={e => setEndInput(e.target.value)}
+                                className="border border-gray-200 rounded-lg px-2.5 py-1.5 text-xs text-gray-700 focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                            />
+                        </div>
+                        <button
+                            onClick={applyFilter}
+                            className="px-3 py-1.5 bg-green-600 hover:bg-green-700 text-white text-xs rounded-lg transition-colors"
+                        >
+                            Terapkan
+                        </button>
+                        {isFiltered && (
+                            <button
+                                onClick={resetFilter}
+                                className="flex items-center gap-1 px-3 py-1.5 text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg hover:bg-white transition-colors"
+                            >
+                                <X className="w-3 h-3" /> Reset
+                            </button>
+                        )}
+                    </div>
+                )}
+
 
                 <CardContent className="p-0 mt-4">
                     {loadingHistory ? (
