@@ -317,13 +317,13 @@ export default function PredictionsPage() {
                         </div>
 
                         {latestForecast ? (
-                            <div className="space-y-3">
-                                <div className="flex items-center justify-center gap-3">
+                            <div className="flex flex-col justify-between h-full space-y-3 pt-2">
+                                <div className="flex items-center gap-3">
                                     {(latestForecast.predicted_death ?? 0) > 0
                                         ? <HeartCrack className="w-8 h-8 text-red-500 flex-shrink-0" />
                                         : <CheckCircle2 className="w-8 h-8 text-green-500 flex-shrink-0" />
                                     }
-                                    <div className="text-center">
+                                    <div>
                                         <p className={`text-2xl font-bold ${(latestForecast.predicted_death ?? 0) > 0 ? "text-red-600" : "text-green-600"}`}>
                                             {(latestForecast.predicted_death ?? 0) > 0 ? `${latestForecast.predicted_death} kematian` : "Aman"}
                                         </p>
@@ -335,7 +335,7 @@ export default function PredictionsPage() {
                                     const last = history[history.length - 1];
                                     if (!last) return null;
                                     return (
-                                        <div className="flex flex-wrap gap-2 pt-1">
+                                        <div className="flex flex-wrap gap-2 pt-6">
                                             {last.temp !== undefined && <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Suhu {last.temp}°C</span>}
                                             {last.hum !== undefined && <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Kelembaban {last.hum}%</span>}
                                             {last.ammo !== undefined && <span className="text-[11px] bg-gray-50 border border-gray-100 rounded-lg px-2 py-0.5 text-gray-500">Amoniak {Number(last.ammo).toFixed(3)}</span>}
