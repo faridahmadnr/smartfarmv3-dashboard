@@ -55,6 +55,7 @@ function getRiskLevel(predictedDeath: number) {
 export default function DashboardPage() {
     const { status } = useSession();
     const { data: session } = useSession();
+    const isPeternak = session?.user?.role === "peternak";
     const { data: kandang, loading: loadingKandang, refetch: refetchKandang } = useMyKandang();
     const { data: notifData, loading: loadingNotif } = useNotifications();
     const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData();
@@ -153,18 +154,22 @@ export default function DashboardPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                    <button
-                        onClick={() => setShowDeathModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
-                    >
-                        <HeartCrack className="w-3.5 h-3.5" />Laporkan Kematian
-                    </button>
-                    <button
-                        onClick={() => setShowDailyModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
-                    >
-                        <BookOpen className="w-3.5 h-3.5" />Input Harian
-                    </button>
+                    {isPeternak && (
+                        <button
+                            onClick={() => setShowDeathModal(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                        >
+                            <HeartCrack className="w-3.5 h-3.5" />Laporkan Kematian
+                        </button>
+                    )}
+                    {isPeternak && (
+                        <button
+                            onClick={() => setShowDailyModal(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                        >
+                            <BookOpen className="w-3.5 h-3.5" />Input Harian
+                        </button>
+                    )}
                     {kandang && (
                         <Badge variant={kandangStatus.variant} className="flex items-center gap-1.5 text-xs px-2.5 py-1">
                             <span className={`w-2 h-2 rounded-full animate-pulse ${kandangStatus.dot}`} />

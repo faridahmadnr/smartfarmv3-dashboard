@@ -23,6 +23,7 @@ const PER_PAGE = 20;
 
 export default function DailyLogsPage() {
     const { data: session, status } = useSession();
+    const isPeternak = session?.user?.role === "peternak";
     const [items, setItems] = useState<DailyLogItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -94,10 +95,12 @@ export default function DailyLogsPage() {
                         <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                         Refresh
                     </button>
-                    <button onClick={() => setShowModal(true)}
-                        className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors">
-                        <Plus className="w-3.5 h-3.5" />Input Harian
-                    </button>
+                    {isPeternak && (
+                        <button onClick={() => setShowModal(true)}
+                            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors">
+                            <Plus className="w-3.5 h-3.5" />Input Harian
+                        </button>
+                    )}
                 </div>
             </div>
 
@@ -159,7 +162,7 @@ export default function DailyLogsPage() {
                                 <BookOpen className="w-6 h-6 text-gray-300" />
                             </div>
                             <p className="text-sm text-gray-400">{hasFilter ? "Tidak ada data untuk rentang tanggal ini" : "Belum ada log harian"}</p>
-                            {!hasFilter && (
+                            {!hasFilter && isPeternak && (
                                 <button onClick={() => setShowModal(true)}
                                     className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
                                     + Input sekarang
