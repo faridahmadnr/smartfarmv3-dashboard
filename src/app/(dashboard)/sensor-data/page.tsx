@@ -187,7 +187,7 @@ export default function SensorDataPage() {
         return [...uniqueLive, ...rawApiData];
     }, [liveReadings, rawApiData, currentPage]);
 
-    const canInput = session?.user?.role === "admin" || session?.user?.role === "pemilik" || session?.user?.role === "peternak";
+    const canInput = session?.user?.role === "admin";
 
     // ── Sort + filter pipeline (client-side on current page) ─────────────────
     const processedData = useMemo(() => {

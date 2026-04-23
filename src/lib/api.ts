@@ -152,20 +152,6 @@ export const usersApi = {
         });
     },
 
-    createPeternak: async (peternakData: {
-        email: string;
-        username: string;
-        full_name: string;
-        phone?: string;
-        password: string;
-    }, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/users/me/peternaks`, {
-            method: "POST",
-            body: JSON.stringify(peternakData),
-            token,
-        });
-    },
-
     update: async (id: string, userData: {
         email?: string;
         username?: string;
@@ -188,50 +174,12 @@ export const usersApi = {
         });
     },
 
-    getPeternaksByPemilik: async (pemilikId: string, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/users/pemilik/${pemilikId}/peternaks`, { token });
-    },
 };
 
 // Kandang API
 export const kandangApi = {
     getMe: async (token?: string) => {
         return fetchWithAuth(`${API_PREFIX}/kandangs/me`, { token });
-    },
-
-    list: async (params?: {
-        page?: number;
-        per_page?: number;
-        pemilik_id?: string;
-        is_active?: boolean;
-    }, token?: string) => {
-        const searchParams = new URLSearchParams();
-        if (params?.page) searchParams.set("page", params.page.toString());
-        if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
-        if (params?.pemilik_id) searchParams.set("pemilik_id", params.pemilik_id);
-        if (params?.is_active !== undefined) searchParams.set("is_active", params.is_active.toString());
-
-        const query = searchParams.toString();
-        return fetchWithAuth(`${API_PREFIX}/kandangs${query ? `?${query}` : ""}`, { token });
-    },
-
-    get: async (id: string, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, { token });
-    },
-
-    create: async (kandangData: {
-        nama: string;
-        kode: string;
-        lokasi?: string;
-        kapasitas?: number;
-        deskripsi?: string;
-        pemilik_id: string;
-    }, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/kandangs`, {
-            method: "POST",
-            body: JSON.stringify(kandangData),
-            token,
-        });
     },
 
     update: async (id: string, kandangData: {
@@ -244,13 +192,6 @@ export const kandangApi = {
         return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, {
             method: "PUT",
             body: JSON.stringify(kandangData),
-            token,
-        });
-    },
-
-    delete: async (id: string, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, {
-            method: "DELETE",
             token,
         });
     },
@@ -328,40 +269,6 @@ export const sensorDataApi = {
 
 // Predictions API
 export const predictionsApi = {
-    classify: async (data: {
-        hari_ke: number;
-        suhu: number;
-        kelembaban: number;
-        amoniak: number;
-        pakan: number;
-        minum: number;
-        bobot: number;
-        populasi: number;
-        luas_kandang: number;
-        hour: number;
-    }, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/predictions/classify`, {
-            method: "POST",
-            body: JSON.stringify(data),
-            token,
-        });
-    },
-
-    forecast: async (data: {
-        sensor_history: Array<{
-            temp: number;
-            hum: number;
-            ammo: number;
-            Death: number;
-        }>;
-    }, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/predictions/forecast`, {
-            method: "POST",
-            body: JSON.stringify(data),
-            token,
-        });
-    },
-
     getModels: async (token?: string) => {
         return fetchWithAuth(`${API_PREFIX}/predictions/models`, { token });
     },

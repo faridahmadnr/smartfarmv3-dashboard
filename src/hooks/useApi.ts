@@ -192,111 +192,6 @@ export function useMyKandang() {
     return { data, loading, error, refetch };
 }
 
-export function useKandangs() {
-    const { data: session, status } = useSession();
-    const [data, setData] = useState<{ items: Kandang[]; total: number } | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const hasFetched = useRef(false);
-
-    const refetch = useCallback(async () => {
-        if (status === "loading") return;
-        if (!session?.accessToken) {
-            setLoading(false);
-            setError("No access token");
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-
-        try {
-            const response = await kandangApi.list({}, session.accessToken);
-            if (response && typeof response === "object") {
-                // Handle different response formats
-                if ("items" in response) {
-                    const items = (response as any).items as Kandang[];
-                    const total = (response as any).total || items.length;
-                    setData({ items, total });
-                } else if (Array.isArray(response)) {
-                    setData({ items: response as Kandang[], total: response.length });
-                } else if ("data" in response && response.data) {
-                    const respData = response.data as any;
-                    if (Array.isArray(respData)) {
-                        setData({ items: respData, total: respData.length });
-                    } else {
-                        setData({ items: respData.items || [], total: respData.total || 0 });
-                    }
-                }
-            }
-        } catch (err) {
-            console.error("Kandang fetch error:", err);
-            setError(parseError(err));
-        } finally {
-            setLoading(false);
-        }
-    }, [session?.accessToken, status]);
-
-    useEffect(() => {
-        if (status === "loading") return;
-        if (status === "authenticated" && session?.accessToken && !hasFetched.current) {
-            hasFetched.current = true;
-            refetch();
-        } else if (status === "unauthenticated") {
-            setLoading(false);
-        }
-    }, [status, session?.accessToken, refetch]);
-
-    return { data, loading, error, refetch };
-}
-
-export function useKandang(id: string) {
-    const { data: session, status } = useSession();
-    const [data, setData] = useState<Kandang | null>(null);
-    const [loading, setLoading] = useState(true);
-    const [error, setError] = useState<string | null>(null);
-    const hasFetched = useRef(false);
-
-    const refetch = useCallback(async () => {
-        if (status === "loading" || !id) return;
-        if (!session?.accessToken) {
-            setLoading(false);
-            return;
-        }
-
-        setLoading(true);
-        setError(null);
-
-        try {
-            const response = await kandangApi.get(id, session.accessToken);
-            if (response && typeof response === "object") {
-                if ("data" in response && response.data) {
-                    setData(response.data as Kandang);
-                } else if ("id" in response) {
-                    setData(response as unknown as Kandang);
-                }
-            }
-        } catch (err) {
-            console.error("Kandang detail fetch error:", err);
-            setError(parseError(err));
-        } finally {
-            setLoading(false);
-        }
-    }, [id, session?.accessToken, status]);
-
-    useEffect(() => {
-        if (status === "loading") return;
-        if (status === "authenticated" && session?.accessToken && !hasFetched.current) {
-            hasFetched.current = true;
-            refetch();
-        } else if (status === "unauthenticated") {
-            setLoading(false);
-        }
-    }, [status, session?.accessToken, refetch]);
-
-    return { data, loading, error, refetch };
-}
-
 // Users hooks
 export function useUsers(params?: { role?: string; pemilik_id?: string }) {
     const { data: session, status } = useSession();
@@ -556,67 +451,6 @@ export function useNotifications(page: number = 1, limit: number = 20) {
 }
 
 // Mutation hooks
-export function useDeleteKandang() {
-    const { data: session } = useSession();
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const mutate = useCallback(
-        async (id: string): Promise<{ success: boolean }> => {
-            if (!session?.accessToken) {
-                return { success: false };
-            }
-
-            setLoading(true);
-            setError(null);
-
-            try {
-                await kandangApi.delete(id, session.accessToken);
-                return { success: true };
-            } catch (err) {
-                setError(parseError(err));
-                return { success: false };
-            } finally {
-                setLoading(false);
-            }
-        },
-        [session?.accessToken]
-    );
-
-    return { mutate, loading, error };
-}
-
-export function useCreateKandang() {
-    const { data: session } = useSession();
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const mutate = useCallback(
-        async (data: any): Promise<{ success: boolean; data?: Kandang; error?: string }> => {
-            if (!session?.accessToken) {
-                return { success: false, error: "No access token" };
-            }
-
-            setLoading(true);
-            setError(null);
-
-            try {
-                const response = await kandangApi.create(data, session.accessToken);
-                return { success: true, data: response as unknown as Kandang };
-            } catch (err) {
-                const errorMsg = err instanceof Error ? err.message : "Failed to create";
-                setError(errorMsg);
-                return { success: false, error: errorMsg };
-            } finally {
-                setLoading(false);
-            }
-        },
-        [session?.accessToken]
-    );
-
-    return { mutate, loading, error };
-}
-
 export function useUpdateKandang() {
     const { data: session } = useSession();
     const [loading, setLoading] = useState(false);
@@ -715,7 +549,7 @@ export function useCreatePeternak() {
     const [error, setError] = useState<string | null>(null);
 
     const mutate = useCallback(
-        async (data: Parameters<typeof usersApi.createPeternak>[0]): Promise<{ success: boolean; data?: User }> => {
+        async (data: Parameters<typeof usersApi.create>[0]): Promise<{ success: boolean; data?: User }> => {
             if (!session?.accessToken) {
                 return { success: false };
             }
@@ -724,7 +558,7 @@ export function useCreatePeternak() {
             setError(null);
 
             try {
-                const response = await usersApi.createPeternak(data, session.accessToken);
+                const response = await usersApi.create(data, session.accessToken);
                 return { success: true, data: response as unknown as User };
             } catch (err) {
                 setError(parseError(err));

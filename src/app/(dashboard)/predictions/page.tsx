@@ -7,11 +7,12 @@ import {
     ShieldCheck, TrendingUp, HeartCrack,
     CheckCircle2, AlertTriangle, XCircle,
     Activity, Cpu, ChevronDown, ChevronUp,
-    RotateCcw, Info, Filter, X,
+    Info, Filter, X,
     ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight,
 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
-import { useModelInfo, useReloadModels } from "@/hooks/useApi";
+import { Tooltip } from "@/components/ui/tooltip";
+import { useModelInfo } from "@/hooks/useApi";
 import { predictionsApi } from "@/lib/api";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -74,11 +75,9 @@ const PAGE_SIZE_OPTIONS = [10, 25, 50];
 export default function PredictionsPage() {
     const { data: session, status } = useSession();
     const { data: modelInfo } = useModelInfo();
-    const { mutate: reloadModels, loading: reloading } = useReloadModels();
 
     const [records, setRecords] = useState<PredictionRecord[]>([]);
     const [loadingHistory, setLoadingHistory] = useState(false);
-    const [reloadSuccess, setReloadSuccess] = useState(false);
     const [activeTab, setActiveTab] = useState<"classification" | "forecasting">("classification");
     const [showModelInfo, setShowModelInfo] = useState(false);
 
@@ -142,14 +141,6 @@ export default function PredictionsPage() {
             loadHistory();
         }
     }, [status, session?.accessToken, loadHistory]);
-
-    const handleReload = async () => {
-        const result = await reloadModels();
-        if (result.success) {
-            setReloadSuccess(true);
-            setTimeout(() => setReloadSuccess(false), 3000);
-        }
-    };
 
     // ── Derived ──────────────────────────────────────────────────────────────
     const classifyRecords = useMemo(() => records.filter(r => r.type === "classification"), [records]);
@@ -458,11 +449,24 @@ export default function PredictionsPage() {
                                                     <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{formatTime(r.created_at)}</td>
                                                     <td className="py-3 px-4">
                                                         <div className="space-y-1.5">
-                                                            <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${isAbn ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}>
-                                                                {isAbn ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
-                                                                {r.prediction ?? "—"}
-                                                            </span>
-                                                            {r.confidence !== null && (
+                                                            <div className="flex items-center gap-1.5">
+                                                                <span
+                                                                    className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded-full ${isAbn ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"}`}
+                                                                >
+                                                                    {isAbn ? <AlertTriangle className="w-3 h-3" /> : <CheckCircle2 className="w-3 h-3" />}
+                                                                    {r.prediction ?? "—"}
+                                                                </span>
+                                                                {!isAdmin && r.confidence !== null && (
+                                                                    <Tooltip
+                                                                        content={`Keyakinan model: ${Math.round((r.confidence ?? 0) * 100)}%\nSemakin tinggi, semakin yakin model terhadap hasil prediksinya.`}
+                                                                        side="top"
+                                                                        className="cursor-help flex-shrink-0"
+                                                                    >
+                                                                        <Info className="w-3.5 h-3.5 text-gray-400" />
+                                                                    </Tooltip>
+                                                                )}
+                                                            </div>
+                                                            {isAdmin && r.confidence !== null && (
                                                                 <div className="w-28" title="Tingkat keyakinan model terhadap prediksi ini">
                                                                     <ConfidenceBar value={r.confidence} />
                                                                 </div>
@@ -488,11 +492,21 @@ export default function PredictionsPage() {
                                 <table className="w-full text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[14%]">Waktu Prediksi</th>
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[12%]">Prediksi Kematian</th>
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[10%]">Risiko</th>
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[10%]">Raw Score</th>
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left w-[54%]">Input Data</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[18%]">Waktu Prediksi</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[18%]">Prediksi Kematian</th>
+                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[16%]">Risiko</th>
+                                            {isAdmin && (
+                                                <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[14%]">
+                                                    <Tooltip
+                                                        content={"Nilai mentah keluaran model ML sebelum dibulatkan.\nSemakin tinggi nilainya, semakin besar risiko kematian yang diprediksi."}
+                                                        side="top"
+                                                        className="cursor-help"
+                                                    >
+                                                        <span className="underline decoration-dotted decoration-gray-300">Skor Estimasi</span>
+                                                    </Tooltip>
+                                                </th>
+                                            )}
+                                            <th className={`py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left ${isAdmin ? "w-[34%]" : "w-[48%]"}`}>Input Data</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
@@ -503,10 +517,21 @@ export default function PredictionsPage() {
                                                 <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
                                                     <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{formatTime(r.created_at)}</td>
                                                     <td className="py-3 px-4">
-                                                        <span className={`text-lg font-bold ${hasRisk ? "text-red-600" : "text-green-600"}`}>
-                                                            {r.predicted_death ?? 0}
-                                                        </span>
-                                                        <span className="text-xs text-gray-400 ml-1">ekor</span>
+                                                        <div className="flex items-center gap-1.5">
+                                                            <span className={`text-lg font-bold ${hasRisk ? "text-red-600" : "text-green-600"}`}>
+                                                                {r.predicted_death ?? 0}
+                                                            </span>
+                                                            <span className="text-xs text-gray-400">ekor</span>
+                                                            {!isAdmin && r.raw_prediction !== null && r.raw_prediction !== undefined && (
+                                                                <Tooltip
+                                                                    content={`Skor estimasi: ${Number(r.raw_prediction).toFixed(4)}\nNilai mentah model sebelum dibulatkan menjadi prediksi kematian.`}
+                                                                    side="top"
+                                                                    className="cursor-help flex-shrink-0"
+                                                                >
+                                                                    <Info className="w-3.5 h-3.5 text-gray-400" />
+                                                                </Tooltip>
+                                                            )}
+                                                        </div>
                                                     </td>
                                                     <td className="py-3 px-4">
                                                         {(() => {
@@ -528,11 +553,13 @@ export default function PredictionsPage() {
                                                             );
                                                         })()}
                                                     </td>
-                                                    <td className="py-3 px-4 text-xs text-gray-500 tabular-nums">
-                                                        {r.raw_prediction !== null && r.raw_prediction !== undefined
-                                                            ? Number(r.raw_prediction).toFixed(4)
-                                                            : "—"}
-                                                    </td>
+                                                    {isAdmin && (
+                                                        <td className="py-3 px-4 text-xs text-gray-500 tabular-nums">
+                                                            {r.raw_prediction !== null && r.raw_prediction !== undefined
+                                                                ? Number(r.raw_prediction).toFixed(4)
+                                                                : "—"}
+                                                        </td>
+                                                    )}
                                                     <td className="py-3 px-4">
                                                         {history.length > 0 ? (
                                                             <div className="flex flex-wrap gap-1">
@@ -679,35 +706,6 @@ export default function PredictionsPage() {
                 )}
             </div>
 
-            {/* ── Admin Reload ─────────────────────────────────────────────── */}
-            {isAdmin && (
-                <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 flex items-center justify-between gap-4">
-                    <div className="flex items-center gap-2">
-                        <div className="p-1.5 bg-gray-50 rounded-lg">
-                            <Info className="w-4 h-4 text-gray-400" />
-                        </div>
-                        <div>
-                            <p className="text-sm font-semibold text-gray-800">Reload ML Models</p>
-                            <p className="text-xs text-gray-400 mt-0.5">Reload model dari disk setelah update file model</p>
-                        </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                        {reloadSuccess && (
-                            <span className="flex items-center gap-1 text-xs text-green-600">
-                                <CheckCircle2 className="w-3.5 h-3.5" /> Berhasil
-                            </span>
-                        )}
-                        <button
-                            onClick={handleReload}
-                            disabled={reloading}
-                            className="flex items-center gap-1.5 text-xs bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50"
-                        >
-                            <RotateCcw className={`w-3.5 h-3.5 ${reloading ? "animate-spin" : ""}`} />
-                            {reloading ? "Memuat..." : "Reload Models"}
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 }
