@@ -1,7 +1,9 @@
 "use client";
 
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
+import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useActivityLogs, ActivityLog } from "@/hooks/useApi";
@@ -14,8 +16,8 @@ const getActionLabel = (action: string) => {
         update_user: "Edit Pengguna",
         delete_user: "Hapus Pengguna",
         change_password: "Ganti Password",
-        create_daily_log: "Input Log Harian",
-        update_daily_log: "Update Log Harian",
+        create_daily_log: "Input Catatan Harian",
+        update_daily_log: "Update Catatan Harian",
         create_death_report: "Lapor Kematian",
         classify: "Prediksi Klasifikasi",
         forecast: "Prediksi Kematian",
@@ -41,8 +43,8 @@ const getActivityDescription = (log: ActivityLog) => {
         case "update_user":         return `${name} memperbarui data pengguna`;
         case "delete_user":         return `${name} menghapus pengguna`;
         case "change_password":     return `${name} mengganti password`;
-        case "create_daily_log":    return `${name} menginput log harian`;
-        case "update_daily_log":    return `${name} memperbarui log harian`;
+        case "create_daily_log":    return `${name} menginput catatan harian`;
+        case "update_daily_log":    return `${name} memperbarui catatan harian`;
         case "create_death_report": return `${name} melaporkan kematian ayam`;
         case "classify":            return `Sistem menjalankan prediksi kondisi kandang`;
         case "forecast":            return `Sistem menjalankan prediksi kematian`;
@@ -62,10 +64,13 @@ const formatDate = (dateString: string) => {
     });
 };
 
+const PER_PAGE = 20;
+
 export default function ActivityLogsPage() {
     const { data: session, status } = useSession();
     const router = useRouter();
-    const { data: logsData, loading, error, refetch } = useActivityLogs({ per_page: 50 });
+    const [page, setPage] = useState(1);
+    const { data: logsData, loading, error, refetch } = useActivityLogs({ per_page: PER_PAGE, page });
 
     if (status === "loading" || loading) {
         return (
@@ -82,6 +87,7 @@ export default function ActivityLogsPage() {
 
     const activityLogs = logsData?.items || [];
     const totalLogs = logsData?.total || 0;
+    const totalPages = Math.max(1, Math.ceil(totalLogs / PER_PAGE));
 
     const today = new Date().toDateString();
     const todayLogs = activityLogs.filter(
@@ -230,6 +236,20 @@ export default function ActivityLogsPage() {
                                     ))}
                                 </tbody>
                             </table>
+                        </div>
+                    )}
+                    {totalLogs > PER_PAGE && (
+                        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+                            <p className="text-xs text-gray-400">
+                                Halaman {page} dari {totalPages} · Total {totalLogs} aktivitas
+                            </p>
+                            <div className="flex items-center gap-1">
+                                <button onClick={() => setPage(1)} disabled={page === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft className="w-4 h-4" /></button>
+                                <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+                                <span className="px-3 py-1 text-xs font-medium text-gray-700">{page}</span>
+                                <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronRight className="w-4 h-4" /></button>
+                                <button onClick={() => setPage(totalPages)} disabled={page === totalPages} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsRight className="w-4 h-4" /></button>
+                            </div>
                         </div>
                     )}
                 </CardContent>
