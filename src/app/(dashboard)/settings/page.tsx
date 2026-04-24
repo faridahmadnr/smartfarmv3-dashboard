@@ -25,6 +25,7 @@ export default function SettingsPage() {
     const [phoneInput, setPhoneInput] = useState("");
     const [savingPhone, setSavingPhone] = useState(false);
 
+    const isPeternak = session?.user?.role === "peternak";
     const { data: kandang, refetch: refetchKandang } = useMyKandang();
     const [kandangForm, setKandangForm] = useState({ nama: "", lokasi: "", kapasitas: "", deskripsi: "" });
     const [savingKandang, setSavingKandang] = useState(false);
@@ -62,7 +63,7 @@ export default function SettingsPage() {
         }
     };
 
-    const { data: myLogsData, loading: loadingLogs } = useMyActivityLogs({ per_page: 10 });
+    const { data: myLogsData, loading: loadingLogs } = useMyActivityLogs({ per_page: 5 });
 
     useEffect(() => {
         if (session?.accessToken) {
@@ -127,6 +128,25 @@ export default function SettingsPage() {
             case "peternak": return <Badge variant="default">Peternak</Badge>;
             default:        return <Badge>{role}</Badge>;
         }
+    };
+
+    const getActivityLabel = (action: string, resource: string) => {
+        const key = `${action}__${resource}`;
+        const map: Record<string, string> = {
+            "login__auth": "Login ke Sistem",
+            "logout__auth": "Logout dari Sistem",
+            "change_password__auth": "Ganti Password",
+            "create__daily_log": "Input Log Harian",
+            "update__daily_log": "Update Log Harian",
+            "create__death_report": "Laporan Kematian",
+            "update__kandang": "Update Informasi Kandang",
+            "create__user": "Tambah Pengguna",
+            "update__user": "Update Pengguna",
+            "delete__user": "Hapus Pengguna",
+            "update__profile": "Update Profil",
+            "update__phone": "Update Nomor WhatsApp",
+        };
+        return map[key] ?? map[action] ?? action.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase());
     };
 
     if (status === "loading") {
@@ -223,8 +243,8 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Kandang Info */}
-                    <Card>
+                    {/* Kandang Info — Peternak only */}
+                    {isPeternak && <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -278,7 +298,7 @@ export default function SettingsPage() {
                                 </Button>
                             </form>
                         </CardContent>
-                    </Card>
+                    </Card>}
 
                     {/* Change Password — admin only */}
                     {session?.user?.role === "admin" && <Card>
@@ -350,14 +370,13 @@ export default function SettingsPage() {
                                             }`} />
                                             <div className="flex-1 min-w-0">
                                                 <p className="text-sm font-medium text-gray-900">
-                                                    {log.action.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}
+                                                    {getActivityLabel(log.action, log.resource ?? "")}
                                                 </p>
                                                 <div className="flex items-center gap-2 mt-1">
-                                                    {log.resource && <span className="text-xs text-gray-500 capitalize">{log.resource}</span>}
-                                                    {log.platform && <><span className="text-xs text-gray-300">·</span><span className="text-xs text-gray-500 capitalize">{log.platform}</span></>}
+                                                    {log.platform && <span className="text-xs text-gray-500 capitalize">{log.platform === "web" ? "Web" : log.platform}</span>}
                                                     <span className="text-xs text-gray-300">·</span>
                                                     <span className="text-xs text-gray-400">
-                                                        {new Date(log.created_at).toLocaleString("id-ID", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                                        {new Date(log.created_at).toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}
                                                     </span>
                                                 </div>
                                             </div>

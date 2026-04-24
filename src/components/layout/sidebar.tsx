@@ -39,7 +39,7 @@ const navigation = [
         roles: ["admin", "pemilik", "peternak"],
     },
     {
-        name: "Log Harian",
+        name: "Catatan Harian",
         href: "/daily-logs",
         icon: (
             <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
