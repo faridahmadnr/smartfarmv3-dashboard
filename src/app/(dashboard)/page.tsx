@@ -14,7 +14,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useMyKandang, useNotifications, useSensorData, useTodayDailyLog, useTodayDeathTotal } from "@/hooks/useApi";
 import { useLiveSensorData } from "@/hooks/useLiveSensorData";
-import { DeathReportModal } from "@/components/modals/DeathReportModal";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { predictionsApi } from "@/lib/api";
 
@@ -61,8 +60,7 @@ export default function DashboardPage() {
     const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData();
 
     const { data: todayLog } = useTodayDailyLog();
-    const { total: todayDeathTotal, refetch: refetchDeathTotal } = useTodayDeathTotal();
-    const [showDeathModal, setShowDeathModal] = useState(false);
+    const { total: todayDeathTotal } = useTodayDeathTotal();
     const [showDailyModal, setShowDailyModal] = useState(false);
 
     // Latest ML predictions
@@ -154,14 +152,6 @@ export default function DashboardPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
-                    {isPeternak && (
-                        <button
-                            onClick={() => setShowDeathModal(true)}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
-                        >
-                            <HeartCrack className="w-3.5 h-3.5" />Laporkan Kematian
-                        </button>
-                    )}
                     {isPeternak && (
                         <button
                             onClick={() => setShowDailyModal(true)}
@@ -408,20 +398,18 @@ export default function DashboardPage() {
                                     </div>
                                 ))}
                             </div>
-                            <button
-                                onClick={() => setShowDeathModal(true)}
-                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-red-50 hover:bg-red-100 text-red-600 text-xs font-semibold rounded-xl transition-colors border border-red-100"
+                            <Link
+                                href="/daily-logs"
+                                className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 hover:bg-gray-100 text-gray-500 text-xs font-medium rounded-xl transition-colors border border-gray-100"
                             >
-                                <HeartCrack className="w-3.5 h-3.5" />
-                                Laporkan Kematian
-                            </button>
+                                Lihat detail & laporan kematian →
+                            </Link>
                         </CardContent>
                     </Card>
                 </div>
             </div>
 
             {/* Modals */}
-            <DeathReportModal open={showDeathModal} onClose={() => setShowDeathModal(false)} onSuccess={refetchDeathTotal} />
             <DailyLogModal open={showDailyModal} onClose={() => setShowDailyModal(false)} />
         </div>
     );

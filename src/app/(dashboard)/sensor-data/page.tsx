@@ -253,6 +253,17 @@ export default function SensorDataPage() {
         });
     }, [chartApiData, liveReadings]);
 
+    // Auto-expand chart range when IoT is offline and no data in the current narrow window.
+    // Only triggers once per mount — respects manual preset changes after that.
+    const hasAutoExpanded = useRef(false);
+    useEffect(() => {
+        if (chartLoading) return;
+        if (chartData.length === 0 && (chartPreset === "6h" || chartPreset === "today") && !hasAutoExpanded.current) {
+            hasAutoExpanded.current = true;
+            applyPreset("7d");
+        }
+    }, [chartLoading, chartData.length, chartPreset, applyPreset]);
+
     // Date range label for chart subtitle
     const chartDateRange = useMemo(() => {
         if (chartData.length === 0) return "";
