@@ -36,8 +36,11 @@ export default function DailyLogsPage() {
 
     // Death report state
     const [showDeathModal, setShowDeathModal] = useState(false);
-    const { data: deathData, loading: deathLoading, refetch: refetchDeaths } = useDeathReports();
+    const [deathPage, setDeathPage] = useState(1);
+    const DEATH_PER_PAGE = 10;
+    const { data: deathData, loading: deathLoading, refetch: refetchDeaths } = useDeathReports({ page: deathPage, per_page: DEATH_PER_PAGE });
     const { total: todayDeathTotal, refetch: refetchDeathTotal } = useTodayDeathTotal();
+    const deathTotalPages = Math.max(1, Math.ceil((deathData?.total ?? 0) / DEATH_PER_PAGE));
 
     // Filter state
     const [startInput, setStartInput] = useState("");
@@ -285,10 +288,19 @@ export default function DailyLogsPage() {
                                     })}
                                 </tbody>
                             </table>
-                            {(deathData?.total ?? 0) > 20 && (
-                                <p className="text-xs text-gray-400 text-center py-3 border-t border-gray-50">
-                                    Menampilkan 20 laporan terbaru · Total {deathData?.total} laporan
-                                </p>
+                            {(deathData?.total ?? 0) > DEATH_PER_PAGE && (
+                                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-50">
+                                    <p className="text-xs text-gray-400">
+                                        Halaman {deathPage} dari {deathTotalPages} · Total {deathData?.total} laporan
+                                    </p>
+                                    <div className="flex items-center gap-1">
+                                        <button onClick={() => setDeathPage(1)} disabled={deathPage === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft className="w-4 h-4" /></button>
+                                        <button onClick={() => setDeathPage(p => Math.max(1, p - 1))} disabled={deathPage === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft className="w-4 h-4" /></button>
+                                        <span className="px-3 py-1 text-xs font-medium text-gray-700">{deathPage}</span>
+                                        <button onClick={() => setDeathPage(p => Math.min(deathTotalPages, p + 1))} disabled={deathPage === deathTotalPages} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronRight className="w-4 h-4" /></button>
+                                        <button onClick={() => setDeathPage(deathTotalPages)} disabled={deathPage === deathTotalPages} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsRight className="w-4 h-4" /></button>
+                                    </div>
+                                </div>
                             )}
                         </div>
                     )}

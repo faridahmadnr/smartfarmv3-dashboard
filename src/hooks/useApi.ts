@@ -1081,7 +1081,7 @@ export interface DeathReportItem {
     created_at: string;
 }
 
-export function useDeathReports() {
+export function useDeathReports(params?: { page?: number; per_page?: number }) {
     const { data: session, status } = useSession();
     const [data, setData] = useState<{ items: DeathReportItem[]; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
@@ -1091,7 +1091,7 @@ export function useDeathReports() {
         if (!session?.accessToken) { setLoading(false); return; }
         setLoading(true);
         try {
-            const res: any = await deathReportsApi.list({ per_page: 20 }, session.accessToken);
+            const res: any = await deathReportsApi.list({ per_page: params?.per_page ?? 10, page: params?.page ?? 1 }, session.accessToken);
             const d = res?.data ?? res;
             setData({ items: d?.items ?? [], total: d?.total ?? 0 });
         } catch (err) {
@@ -1099,7 +1099,7 @@ export function useDeathReports() {
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken]);
+    }, [session?.accessToken, params?.page, params?.per_page]);
 
     useEffect(() => {
         if (status === "loading") return;
