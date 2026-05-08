@@ -495,11 +495,7 @@ export default function PredictionsPage() {
 
 
                 <CardContent className="p-0 mt-4">
-                    {loadingHistory ? (
-                        <div className="py-12 flex justify-center">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600" />
-                        </div>
-                    ) : pagedRecords.length === 0 ? (
+                    {!loadingHistory && pagedRecords.length === 0 ? (
                         <div className="py-14 text-center">
                             <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-50 flex items-center justify-center">
                                 <ShieldCheck className="w-6 h-6 text-gray-300" />
@@ -509,7 +505,12 @@ export default function PredictionsPage() {
                         </div>
                     ) : activeTab === "classification" ? (
                         <>
-                            <div className="overflow-x-auto">
+                            <div className="relative overflow-x-auto">
+                                {loadingHistory && (
+                                    <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600" />
+                                    </div>
+                                )}
                                 <table className="w-full text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
@@ -568,7 +569,12 @@ export default function PredictionsPage() {
                         </>
                     ) : (
                         <>
-                            <div className="overflow-x-auto">
+                            <div className="relative overflow-x-auto">
+                                {loadingHistory && (
+                                    <div className="absolute inset-0 bg-white/60 flex items-center justify-center z-10">
+                                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600" />
+                                    </div>
+                                )}
                                 <table className="w-full text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
