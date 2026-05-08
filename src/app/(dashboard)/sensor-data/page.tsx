@@ -10,8 +10,8 @@ import {
     X, RotateCcw, SlidersHorizontal, ChevronDown,
 } from "lucide-react";
 import {
-    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip,
-    ResponsiveContainer, AreaChart, Area, BarChart, Bar,
+    XAxis, YAxis, CartesianGrid, Tooltip,
+    ResponsiveContainer, AreaChart, Area,
 } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,7 +48,7 @@ function StatCard({
 
 // ─── Sort helpers ─────────────────────────────────────────────────────────────
 
-type SortKey = "timestamp" | "hari_ke" | "suhu" | "kelembaban" | "amoniak" | "populasi" | "death";
+type SortKey = "timestamp" | "hari_ke" | "suhu" | "kelembaban" | "amoniak" | "populasi";
 type SortDir = "asc" | "desc";
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
@@ -649,82 +649,6 @@ export default function SensorDataPage() {
                             </CardContent>
                         </Card>
 
-                        {/* Kematian & Populasi */}
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                            <Card>
-                                <CardHeader className="border-b border-gray-100">
-                                    <div>
-                                        <CardTitle className="text-base">Kematian</CardTitle>
-                                        {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="pt-4">
-                                    <ResponsiveContainer width="100%" height={220}>
-                                        <BarChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                            <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
-                                            <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" allowDecimals={false} />
-                                            <Tooltip content={<CustomTooltipContent />} />
-                                            <Bar dataKey="death" fill="#ef4444" name="Kematian" radius={[4, 4, 0, 0]} />
-                                        </BarChart>
-                                    </ResponsiveContainer>
-                                </CardContent>
-                            </Card>
-
-                            <Card>
-                                <CardHeader className="border-b border-gray-100">
-                                    <div>
-                                        <CardTitle className="text-base">Populasi</CardTitle>
-                                        {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
-                                    </div>
-                                </CardHeader>
-                                <CardContent className="pt-4">
-                                    <ResponsiveContainer width="100%" height={220}>
-                                        <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                            <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
-                                            <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" domain={["auto", "auto"]} />
-                                            <Tooltip content={<CustomTooltipContent />} />
-                                            <Line type="monotone" dataKey="populasi" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} name="Populasi" />
-                                        </LineChart>
-                                    </ResponsiveContainer>
-                                </CardContent>
-                            </Card>
-                        </div>
-
-                        {/* Pakan & Minum */}
-                        <Card>
-                            <CardHeader className="border-b border-gray-100">
-                                <div className="flex items-center justify-between gap-4">
-                                    <div>
-                                        <CardTitle className="text-base">Konsumsi Pakan & Minum</CardTitle>
-                                        {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
-                                    </div>
-                                    <div className="flex items-center gap-4 text-xs text-gray-500">
-                                        <span className="flex items-center gap-2">
-                                            <span className="w-3 h-1 rounded-full bg-amber-400 inline-block" />
-                                            Pakan (kg)
-                                        </span>
-                                        <span className="flex items-center gap-2">
-                                            <span className="w-3 h-1 rounded-full bg-cyan-400 inline-block" />
-                                            Minum (L)
-                                        </span>
-                                    </div>
-                                </div>
-                            </CardHeader>
-                            <CardContent className="pt-4">
-                                <ResponsiveContainer width="100%" height={220}>
-                                    <LineChart data={chartData} margin={{ top: 5, right: 20, left: 0, bottom: 25 }}>
-                                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                        <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
-                                        <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" />
-                                        <Tooltip content={<CustomTooltipContent />} />
-                                        <Line type="monotone" dataKey="pakan" stroke="#f59e0b" strokeWidth={2} dot={{ r: 3 }} name="Pakan (kg)" />
-                                        <Line type="monotone" dataKey="minum" stroke="#06b6d4" strokeWidth={2} dot={{ r: 3 }} name="Minum (L)" />
-                                    </LineChart>
-                                </ResponsiveContainer>
-                            </CardContent>
-                        </Card>
                     </div>
                 )
             )}
@@ -842,7 +766,6 @@ export default function SensorDataPage() {
                                             <ThSort col="kelembaban" label="Kelembaban" />
                                             <ThSort col="amoniak" label="Amoniak (ppm)" />
                                             <ThSort col="populasi" label="Populasi" />
-                                            <ThSort col="death" label="Kematian" />
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
@@ -858,9 +781,6 @@ export default function SensorDataPage() {
                                                     {typeof row.amoniak === "number" ? row.amoniak.toFixed(3) : "-"}
                                                 </td>
                                                 <td className="py-3 px-4 text-gray-700">{row.populasi?.toLocaleString() || "-"}</td>
-                                                <td className={`py-3 px-4 font-medium ${row.death > 0 ? "text-red-600" : "text-gray-700"}`}>
-                                                    {row.death ?? 0}
-                                                </td>
                                             </tr>
                                         ))}
                                     </tbody>
