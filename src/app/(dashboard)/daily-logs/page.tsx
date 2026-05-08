@@ -1,8 +1,12 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useMemo } from "react";
 import { BookOpen, RefreshCw, Plus, RotateCcw, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, HeartCrack, Skull, Pencil, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
+import {
+    AreaChart, Area, BarChart, Bar, LineChart, Line,
+    XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+} from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { DeathReportModal } from "@/components/modals/DeathReportModal";
@@ -28,13 +32,28 @@ interface DeathReportItem {
     timestamp: string;
 }
 
-const PER_PAGE = 20;
+const PER_PAGE = 10;
+
+// ── Tooltip kustom ────────────────────────────────────────────────────────────
+function ChartTooltip({ active, payload, label }: any) {
+    if (!active || !payload?.length) return null;
+    return (
+        <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-3 py-2 text-xs">
+            <p className="font-semibold text-gray-700 mb-1">{label}</p>
+            {payload.map((p: any) => (
+                <p key={p.name} style={{ color: p.color }} className="leading-5">
+                    {p.name}: <span className="font-semibold">{p.value?.toLocaleString("id-ID")}</span>
+                </p>
+            ))}
+        </div>
+    );
+}
 
 export default function DailyLogsPage() {
     const { data: session, status } = useSession();
     const isPeternak = session?.user?.role === "peternak";
 
-    // Daily log state
+    // ── Paginated table state ─────────────────────────────────────────────────
     const [items, setItems] = useState<DailyLogItem[]>([]);
     const [total, setTotal] = useState(0);
     const [loading, setLoading] = useState(true);
@@ -42,7 +61,12 @@ export default function DailyLogsPage() {
     const [showModal, setShowModal] = useState(false);
     const [editLog, setEditLog] = useState<DailyLogItem | null>(null);
 
-    // Death report state
+    // ── Chart data ────────────────────────────────────────────────────────────
+    const [chartPeriod, setChartPeriod] = useState<"7" | "30" | "all">("30");
+    const [chartLogs, setChartLogs] = useState<DailyLogItem[]>([]);
+    const [chartDeaths, setChartDeaths] = useState<{ date: string; mati: number }[]>([]);
+
+    // ── Death report state ────────────────────────────────────────────────────
     const [showDeathModal, setShowDeathModal] = useState(false);
     const [editDeath, setEditDeath] = useState<DeathReportItem | null>(null);
     const [deathPage, setDeathPage] = useState(1);
@@ -51,18 +75,18 @@ export default function DailyLogsPage() {
     const { total: todayDeathTotal, refetch: refetchDeathTotal } = useTodayDeathTotal();
     const deathTotalPages = Math.max(1, Math.ceil((deathData?.total ?? 0) / DEATH_PER_PAGE));
 
-    // Delete confirm state
+    // ── Delete confirm ────────────────────────────────────────────────────────
     const [deleteTarget, setDeleteTarget] = useState<{ type: "log" | "death"; id: string } | null>(null);
     const [deleteLoading, setDeleteLoading] = useState(false);
 
-    // Filter state
+    // ── Filter state ──────────────────────────────────────────────────────────
     const [startInput, setStartInput] = useState("");
     const [endInput, setEndInput] = useState("");
     const [appliedStart, setAppliedStart] = useState("");
     const [appliedEnd, setAppliedEnd] = useState("");
-
     const hasFilter = !!(appliedStart || appliedEnd);
 
+    // ── Load paginated table ──────────────────────────────────────────────────
     const load = useCallback(async () => {
         if (!session?.accessToken) return;
         setLoading(true);
@@ -81,24 +105,72 @@ export default function DailyLogsPage() {
         }
     }, [session?.accessToken, page, appliedStart, appliedEnd]);
 
+    // ── Load chart data (period-filtered, independent from table) ────────────
+    const loadChartData = useCallback(async () => {
+        if (!session?.accessToken) return;
+        try {
+            const startDate = chartPeriod === "all" ? undefined
+                : new Date(Date.now() - parseInt(chartPeriod) * 86400_000).toISOString().slice(0, 10);
+            const [logRes, deathRes]: any[] = await Promise.all([
+                dailyLogsApi.list({ page: 1, per_page: 100, start_date: startDate }, session.accessToken),
+                deathReportsApi.list({ page: 1, per_page: chartPeriod === "7" ? 50 : 100 }, session.accessToken),
+            ]);
+            const logs: DailyLogItem[] = (logRes?.data ?? logRes)?.items ?? [];
+            const deaths: DeathReportItem[] = (deathRes?.data ?? deathRes)?.items ?? [];
+
+            // Sort ascending for chart
+            setChartLogs([...logs].sort((a, b) => a.date.localeCompare(b.date)));
+
+            // Aggregate death reports by date
+            const byDate: Record<string, number> = {};
+            for (const d of deaths) {
+                const key = d.timestamp.slice(0, 10);
+                byDate[key] = (byDate[key] ?? 0) + d.count;
+            }
+            setChartDeaths(
+                Object.entries(byDate)
+                    .sort(([a], [b]) => a.localeCompare(b))
+                    .map(([date, mati]) => ({ date, mati }))
+            );
+        } catch { /* silent */ }
+    }, [session?.accessToken]);
+
     useEffect(() => {
         if (status === "authenticated") load();
     }, [status, load]);
+
+    useEffect(() => {
+        if (status === "authenticated") loadChartData();
+    }, [status, loadChartData, chartPeriod]);
+
+    // ── Chart data merge ──────────────────────────────────────────────────────
+    const chartData = useMemo(() => {
+        const deathMap: Record<string, number> = {};
+        for (const d of chartDeaths) deathMap[d.date] = d.mati;
+
+        return chartLogs.map(row => {
+            const label = new Date(row.date + "T00:00:00").toLocaleDateString("id-ID", { day: "numeric", month: "short" });
+            return {
+                date: label,
+                pakan: row.pakan ?? 0,
+                minum: row.minum ?? 0,
+                populasi: row.populasi ?? null,
+                mati: deathMap[row.date] ?? 0,
+            };
+        });
+    }, [chartLogs, chartDeaths]);
 
     const applyFilter = () => { setAppliedStart(startInput); setAppliedEnd(endInput); setPage(1); };
     const resetFilter = () => { setStartInput(""); setEndInput(""); setAppliedStart(""); setAppliedEnd(""); setPage(1); };
     const totalPages = Math.max(1, Math.ceil(total / PER_PAGE));
 
     const formatDate = (dateStr: string) =>
-        new Date(dateStr).toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
+        new Date(dateStr + "T00:00:00").toLocaleDateString("id-ID", { weekday: "short", day: "numeric", month: "long", year: "numeric" });
 
     const formatTime = (ts: string) =>
         new Date(ts).toLocaleString("id-ID", { day: "numeric", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
 
-    const handleDeathSuccess = () => {
-        refetchDeaths();
-        refetchDeathTotal();
-    };
+    const handleDeathSuccess = () => { refetchDeaths(); refetchDeathTotal(); loadChartData(); };
 
     const handleDelete = async () => {
         if (!deleteTarget || !session?.accessToken) return;
@@ -106,30 +178,29 @@ export default function DailyLogsPage() {
         try {
             if (deleteTarget.type === "log") {
                 await dailyLogsApi.delete(deleteTarget.id, session.accessToken);
-                load();
+                load(); loadChartData();
             } else {
                 await deathReportsApi.delete(deleteTarget.id, session.accessToken);
-                refetchDeaths();
-                refetchDeathTotal();
+                refetchDeaths(); refetchDeathTotal(); loadChartData();
             }
-        } catch {
-            // silent — item may already be gone
-        } finally {
+        } catch { /* silent */ } finally {
             setDeleteLoading(false);
             setDeleteTarget(null);
         }
     };
 
+    const hasChartData = chartData.length > 0;
+
     return (
         <div className="space-y-6">
-            {/* Header */}
+            {/* ── Header ──────────────────────────────────────────────────── */}
             <div className="flex items-center justify-between gap-4">
                 <div>
                     <h1 className="text-xl font-bold text-gray-900">Catatan Harian</h1>
                     <p className="text-sm text-gray-400 mt-0.5">Log harian & laporan kematian ayam</p>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button onClick={() => { load(); refetchDeaths(); refetchDeathTotal(); }} disabled={loading}
+                    <button onClick={() => { load(); refetchDeaths(); refetchDeathTotal(); loadChartData(); }} disabled={loading}
                         className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
                         <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                         Refresh
@@ -149,7 +220,103 @@ export default function DailyLogsPage() {
                 </div>
             </div>
 
-            {/* ── Log Harian ────────────────────────────────────────────── */}
+            {/* ── Grafik ──────────────────────────────────────────────────── */}
+            {hasChartData && (
+                <div className="space-y-5">
+                    {/* Period selector */}
+                    <div className="flex items-center gap-2">
+                        <span className="text-xs text-gray-400 font-medium">Tampilkan:</span>
+                        {(["7", "30", "all"] as const).map(p => (
+                            <button key={p} onClick={() => setChartPeriod(p)}
+                                className={`text-xs px-3 py-1.5 rounded-lg font-medium transition-colors ${chartPeriod === p ? "bg-emerald-600 text-white" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}>
+                                {p === "7" ? "7 Hari" : p === "30" ? "30 Hari" : "Semua"}
+                            </button>
+                        ))}
+                    </div>
+
+                    {/* Populasi & Kematian */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <Card>
+                            <CardHeader className="border-b border-gray-100">
+                                <CardTitle className="text-base">Populasi per Hari</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <LineChart data={chartData} margin={{ top: 5, right: 16, left: 0, bottom: 20 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                                        <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#d1d5db" height={35} interval="preserveStartEnd" />
+                                        <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" domain={["auto", "auto"]} width={55} />
+                                        <Tooltip content={<ChartTooltip />} />
+                                        <Line type="monotone" dataKey="populasi" stroke="#10b981" strokeWidth={2} dot={false} name="Populasi (ekor)" />
+                                    </LineChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="border-b border-gray-100">
+                                <CardTitle className="text-base">Kematian per Hari</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <BarChart data={chartData} margin={{ top: 5, right: 16, left: 0, bottom: 20 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                                        <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#d1d5db" height={35} interval="preserveStartEnd" />
+                                        <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" allowDecimals={false} width={35} />
+                                        <Tooltip content={<ChartTooltip />} />
+                                        <Bar dataKey="mati" fill="#ef4444" name="Kematian (ekor)" radius={[3, 3, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+                    </div>
+
+                    {/* Pakan & Minum */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                        <Card>
+                            <CardHeader className="border-b border-gray-100">
+                                <CardTitle className="text-base">Konsumsi Pakan per Hari</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <BarChart data={chartData} margin={{ top: 5, right: 16, left: 0, bottom: 20 }}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                                        <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#d1d5db" height={35} interval="preserveStartEnd" />
+                                        <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" width={40} />
+                                        <Tooltip content={<ChartTooltip />} />
+                                        <Bar dataKey="pakan" fill="#10b981" name="Pakan (kg)" radius={[3, 3, 0, 0]} />
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+
+                        <Card>
+                            <CardHeader className="border-b border-gray-100">
+                                <CardTitle className="text-base">Konsumsi Minum per Hari</CardTitle>
+                            </CardHeader>
+                            <CardContent className="pt-4">
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <AreaChart data={chartData} margin={{ top: 5, right: 16, left: 0, bottom: 20 }}>
+                                        <defs>
+                                            <linearGradient id="gMinum" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.15} />
+                                                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
+                                        <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#d1d5db" height={35} interval="preserveStartEnd" />
+                                        <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" width={45} />
+                                        <Tooltip content={<ChartTooltip />} />
+                                        <Area type="monotone" dataKey="minum" stroke="#3b82f6" strokeWidth={2} fill="url(#gMinum)" name="Minum (L)" dot={false} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </CardContent>
+                        </Card>
+                    </div>
+                </div>
+            )}
+
+            {/* ── Log Harian ──────────────────────────────────────────────── */}
             <div className="flex items-center gap-2 mb-1">
                 <BookOpen className="w-4 h-4 text-gray-400" />
                 <h2 className="text-sm font-semibold text-gray-700">Log Harian</h2>
@@ -324,12 +491,8 @@ export default function DailyLogsPage() {
                                                     {formatTime(row.timestamp)}
                                                     {isToday && <span className="ml-2 text-[10px] bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full font-semibold">Hari ini</span>}
                                                 </td>
-                                                <td className="py-3 px-4 font-semibold tabular-nums text-red-600">
-                                                    {row.count} ekor
-                                                </td>
-                                                <td className="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">
-                                                    {row.notes || <span className="text-gray-300">—</span>}
-                                                </td>
+                                                <td className="py-3 px-4 font-semibold tabular-nums text-red-600">{row.count} ekor</td>
+                                                <td className="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">{row.notes || <span className="text-gray-300">—</span>}</td>
                                                 {isPeternak && (
                                                     <td className="py-3 px-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-1">
@@ -368,7 +531,7 @@ export default function DailyLogsPage() {
                 </CardContent>
             </Card>
 
-            {/* Delete confirm dialog */}
+            {/* ── Delete confirm ───────────────────────────────────────────── */}
             {deleteTarget && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
                     <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
@@ -396,7 +559,7 @@ export default function DailyLogsPage() {
             <DailyLogModal
                 open={showModal}
                 onClose={() => { setShowModal(false); setEditLog(null); }}
-                onSuccess={load}
+                onSuccess={() => { load(); loadChartData(); }}
                 editItem={editLog}
             />
             <DeathReportModal
