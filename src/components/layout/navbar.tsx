@@ -6,6 +6,7 @@ import Link from "next/link";
 import { Bell, AlertTriangle, HeartCrack, ArrowRight } from "lucide-react";
 import { notificationsApi } from "@/lib/api";
 import { useRealtimeNotifications } from "@/components/notification-provider";
+import { useTheme } from "@/components/providers/theme-provider";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -32,6 +33,10 @@ const TYPE_ICON: Record<string, React.ReactNode> = {
 
 export function Navbar() {
     const { data: session } = useSession();
+    const { theme } = useTheme();
+    const headerClass = theme === "dark"
+        ? "fixed top-0 right-0 left-64 z-30 bg-slate-800 border-b border-slate-700"
+        : "fixed top-0 right-0 left-64 z-30 bg-white border-b border-gray-200";
     const [unreadCount, setUnreadCount] = useState(0);
     const [showDropdown, setShowDropdown] = useState(false);
     const [dropNotifs, setDropNotifs] = useState<any[]>([]);
@@ -100,7 +105,7 @@ export function Navbar() {
     }, [newNotificationCount, showDropdown, fetchDropdown]);
 
     return (
-        <header className="fixed top-0 right-0 left-64 z-30 bg-white border-b border-gray-200">
+        <header className={headerClass}>
             <div className="flex items-center justify-between px-8 py-4">
                 {/* Left: greeting */}
                 <div>

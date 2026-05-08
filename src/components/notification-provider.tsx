@@ -34,23 +34,25 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const [newNotificationCount, setNewNotificationCount] = useState(0);
 
     const handleNotification = useCallback((notification: any) => {
-        const toast: ToastNotification = {
-            id: notification.id || `toast-${Date.now()}`,
-            title: notification.title || "Notifikasi Baru",
-            message: notification.message || "",
-            type: notification.notification_type === "death_forecast" ? "danger"
-                : notification.notification_type === "abnormal_classification" ? "warning"
-                    : "info",
-            timestamp: new Date(),
-        };
+        const id = notification.id || `toast-${Date.now()}`;
 
-        setToasts((prev) => [toast, ...prev].slice(0, 5)); // max 5 toasts
+        setToasts((prev) => {
+            if (prev.some((t) => t.id === id)) return prev;
+            const toast: ToastNotification = {
+                id,
+                title: notification.title || "Notifikasi Baru",
+                message: notification.message || "",
+                type: notification.notification_type === "death_forecast" ? "danger"
+                    : notification.notification_type === "abnormal_classification" ? "warning"
+                        : "info",
+                timestamp: new Date(),
+            };
+            setTimeout(() => {
+                setToasts((p) => p.filter((t) => t.id !== id));
+            }, 8000);
+            return [toast, ...prev].slice(0, 5);
+        });
         setNewNotificationCount((prev) => prev + 1);
-
-        // Auto-dismiss after 8 seconds
-        setTimeout(() => {
-            setToasts((prev) => prev.filter((t) => t.id !== toast.id));
-        }, 8000);
     }, []);
 
     const { connected } = useNotificationWebSocket(handleNotification);

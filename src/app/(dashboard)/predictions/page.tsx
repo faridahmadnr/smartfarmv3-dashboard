@@ -92,6 +92,29 @@ export default function PredictionsPage() {
     const [appliedEnd, setAppliedEnd] = useState("");
     const [showFilter, setShowFilter] = useState(false);
 
+    // Sort state
+    const [sortKey, setSortKey] = useState<string>("created_at");
+    const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
+
+    const handleSort = (key: string) => {
+        if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
+        else { setSortKey(key); setSortDir("desc"); }
+    };
+
+    const Th = ({ col, label, className = "" }: { col: string; label: string; className?: string }) => (
+        <th
+            className={`py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap cursor-pointer select-none hover:text-gray-600 ${className}`}
+            onClick={() => handleSort(col)}
+        >
+            <span className="inline-flex items-center gap-1">
+                {label}
+                {sortKey === col
+                    ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 text-green-600" /> : <ChevronDown className="w-3 h-3 text-green-600" />)
+                    : <ChevronDown className="w-3 h-3 opacity-30" />}
+            </span>
+        </th>
+    );
+
     const isAdmin = session?.user?.role === "admin";
 
     // Reset page on tab change
@@ -154,7 +177,21 @@ export default function PredictionsPage() {
     const riskCount     = forecastRecords.filter(r => (r.predicted_death ?? 0) > 0).length;
     const safeCount     = forecastRecords.filter(r => (r.predicted_death ?? 0) === 0).length;
 
-    const tabRecords   = activeTab === "classification" ? classifyRecords : forecastRecords;
+    const tabRecords = useMemo(() => {
+        const base = activeTab === "classification" ? classifyRecords : forecastRecords;
+        return [...base].sort((a, b) => {
+            let av: any, bv: any;
+            if (sortKey === "created_at") { av = new Date(a.created_at).getTime(); bv = new Date(b.created_at).getTime(); }
+            else if (sortKey === "prediction") { av = a.prediction ?? ""; bv = b.prediction ?? ""; }
+            else if (sortKey === "confidence") { av = a.confidence ?? -1; bv = b.confidence ?? -1; }
+            else if (sortKey === "predicted_death") { av = a.predicted_death ?? -1; bv = b.predicted_death ?? -1; }
+            else if (sortKey === "raw_prediction") { av = a.raw_prediction ?? -1; bv = b.raw_prediction ?? -1; }
+            else { av = 0; bv = 0; }
+            if (av < bv) return sortDir === "asc" ? -1 : 1;
+            if (av > bv) return sortDir === "asc" ? 1 : -1;
+            return 0;
+        });
+    }, [activeTab, classifyRecords, forecastRecords, sortKey, sortDir]);
     const totalPages   = Math.max(1, Math.ceil(tabRecords.length / historyPageSize));
     const pagedRecords = tabRecords.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
 
@@ -433,8 +470,8 @@ export default function PredictionsPage() {
                                 <table className="w-full text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[20%]">Waktu</th>
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[25%]">Hasil</th>
+                                            <Th col="created_at" label="Waktu" className="w-[20%]" />
+                                            <Th col="prediction" label="Hasil" className="w-[25%]" />
                                             <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[18%]">Suhu</th>
                                             <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[18%]">Kelembaban</th>
                                             <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[19%]">Amoniak (ppm)</th>
@@ -492,17 +529,25 @@ export default function PredictionsPage() {
                                 <table className="w-full text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[18%]">Waktu Prediksi</th>
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[18%]">Prediksi Kematian</th>
+                                            <Th col="created_at" label="Waktu Prediksi" className="w-[18%]" />
+                                            <Th col="predicted_death" label="Prediksi Kematian" className="w-[18%]" />
                                             <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[16%]">Risiko</th>
                                             {isAdmin && (
-                                                <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[14%]">
+                                                <th
+                                                    className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap w-[14%] cursor-pointer select-none hover:text-gray-600"
+                                                    onClick={() => handleSort("raw_prediction")}
+                                                >
                                                     <Tooltip
                                                         content={"Nilai mentah keluaran model ML sebelum dibulatkan.\nSemakin tinggi nilainya, semakin besar risiko kematian yang diprediksi."}
                                                         side="top"
                                                         className="cursor-help"
                                                     >
-                                                        <span className="underline decoration-dotted decoration-gray-300">Skor Estimasi</span>
+                                                        <span className="inline-flex items-center gap-1 underline decoration-dotted decoration-gray-300">
+                                                            Skor Estimasi
+                                                            {sortKey === "raw_prediction"
+                                                                ? (sortDir === "asc" ? <ChevronUp className="w-3 h-3 text-green-600" /> : <ChevronDown className="w-3 h-3 text-green-600" />)
+                                                                : <ChevronDown className="w-3 h-3 opacity-30" />}
+                                                        </span>
                                                     </Tooltip>
                                                 </th>
                                             )}

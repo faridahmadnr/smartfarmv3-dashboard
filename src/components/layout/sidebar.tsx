@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { useSession, signOut } from "next-auth/react";
 import { cn } from "@/lib/utils";
 import { getRoleLabel } from "@/lib/utils";
+import { useTheme } from "@/components/providers/theme-provider";
 
 const navigation = [
     {
@@ -94,6 +95,7 @@ const navigation = [
 export function Sidebar() {
     const pathname = usePathname();
     const { data: session } = useSession();
+    const { theme } = useTheme();
 
     const userRole = session?.user?.role || "peternak";
 
@@ -101,8 +103,30 @@ export function Sidebar() {
         item.roles.includes(userRole)
     );
 
+    const activeClass =
+        theme === "blue" ? "bg-blue-50 text-blue-600" :
+        theme === "dark" ? "bg-slate-700 text-green-400" :
+        "bg-green-50 text-green-600";
+
+    const inactiveClass =
+        theme === "dark"
+            ? "text-slate-400 hover:bg-slate-700 hover:text-slate-100"
+            : "text-gray-600 hover:bg-gray-100 hover:text-gray-900";
+
+    const avatarClass =
+        theme === "blue" ? "bg-blue-100 text-blue-700" :
+        theme === "dark" ? "bg-slate-700 text-slate-200" :
+        "bg-green-100 text-green-700";
+
+    const titleClass = theme === "dark" ? "text-slate-100" : "text-gray-900";
+    const subtitleClass = theme === "dark" ? "text-slate-400" : "text-gray-500";
+    const logoutClass =
+        theme === "dark"
+            ? "text-slate-400 hover:text-slate-100 hover:bg-slate-700"
+            : "text-gray-600 hover:text-gray-900 hover:bg-gray-100";
+
     return (
-        <aside className="fixed left-0 top-0 z-40 h-screen w-64 bg-white border-r border-gray-200">
+        <aside className={cn("fixed left-0 top-0 z-40 h-screen w-64 border-r theme-sidebar", theme === "dark" ? "" : "bg-white border-gray-200")}>
             {/* Logo */}
             <div className="flex items-center gap-3 px-6 py-5">
                 <Image
@@ -113,8 +137,8 @@ export function Sidebar() {
                     className="w-10 h-10 object-contain"
                 />
                 <div>
-                    <h1 className="text-lg font-bold text-gray-900">Broilabs</h1>
-                    <p className="text-xs text-gray-500">Monitoring System</p>
+                    <h1 className={cn("text-lg font-bold", titleClass)}>Broilabs</h1>
+                    <p className={cn("text-xs", subtitleClass)}>Monitoring System</p>
                 </div>
             </div>
 
@@ -130,9 +154,7 @@ export function Sidebar() {
                             href={item.href}
                             className={cn(
                                 "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                                isActive
-                                    ? "bg-green-50 text-green-600"
-                                    : "text-gray-600 hover:bg-gray-100 hover:text-gray-900"
+                                isActive ? activeClass : inactiveClass
                             )}
                         >
                             {item.icon}
@@ -145,23 +167,23 @@ export function Sidebar() {
             {/* User section */}
             <div className="absolute bottom-0 left-0 right-0 p-4">
                 <div className="flex items-center gap-3 mb-3">
-                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center">
-                        <span className="text-sm font-medium text-green-700">
+                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", avatarClass)}>
+                        <span className="text-sm font-medium">
                             {session?.user?.name?.charAt(0).toUpperCase() || "U"}
                         </span>
                     </div>
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-gray-900 truncate">
+                        <p className={cn("text-sm font-medium truncate", titleClass)}>
                             {session?.user?.name || "User"}
                         </p>
-                        <p className="text-xs text-gray-500">
+                        <p className={cn("text-xs", subtitleClass)}>
                             {getRoleLabel(userRole)}
                         </p>
                     </div>
                 </div>
                 <button
                     onClick={() => signOut({ callbackUrl: "/login" })}
-                    className="w-full flex items-center justify-center gap-2 px-3 py-2 text-sm text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-lg transition-colors"
+                    className={cn("w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors", logoutClass)}
                 >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
