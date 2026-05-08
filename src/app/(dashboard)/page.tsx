@@ -15,6 +15,7 @@ import { Badge } from "@/components/ui/badge";
 import { useMyKandang, useNotifications, useSensorData, useTodayDailyLog, useTodayDeathTotal } from "@/hooks/useApi";
 import { useLiveSensorData } from "@/hooks/useLiveSensorData";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
+import { DeathReportModal } from "@/components/modals/DeathReportModal";
 import { predictionsApi } from "@/lib/api";
 
 interface StatCardProps {
@@ -62,6 +63,7 @@ export default function DashboardPage() {
     const { data: todayLog } = useTodayDailyLog();
     const { total: todayDeathTotal } = useTodayDeathTotal();
     const [showDailyModal, setShowDailyModal] = useState(false);
+    const [showDeathModal, setShowDeathModal] = useState(false);
 
     // Latest ML predictions
     const [latestClassify, setLatestClassify] = useState<any>(null);
@@ -77,8 +79,8 @@ export default function DashboardPage() {
                 predictionsApi.getHistory({ page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc", type: "classification" }, session.accessToken),
                 predictionsApi.getHistory({ page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc", type: "forecasting" }, session.accessToken),
             ]);
-            const clsItems = Array.isArray(clsRes?.data?.data?.items) ? clsRes.data.data.items : [];
-            const fcItems  = Array.isArray(fcRes?.data?.data?.items)  ? fcRes.data.data.items  : [];
+            const clsItems = Array.isArray(clsRes?.data?.items) ? clsRes.data.items : [];
+            const fcItems  = Array.isArray(fcRes?.data?.items)  ? fcRes.data.items  : [];
             setLatestClassify(clsItems[0] ?? null);
             setLatestForecast(fcItems[0] ?? null);
         } catch { /* ignore */ }
@@ -156,12 +158,20 @@ export default function DashboardPage() {
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
                     {isPeternak && (
-                        <button
-                            onClick={() => setShowDailyModal(true)}
-                            className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
-                        >
-                            <BookOpen className="w-3.5 h-3.5" />Input Harian
-                        </button>
+                        <>
+                            <button
+                                onClick={() => setShowDeathModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                            >
+                                <HeartCrack className="w-3.5 h-3.5" />Laporkan Kematian
+                            </button>
+                            <button
+                                onClick={() => setShowDailyModal(true)}
+                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                            >
+                                <BookOpen className="w-3.5 h-3.5" />Input Harian
+                            </button>
+                        </>
                     )}
                     {kandang && (
                         <Badge variant={kandangStatus.variant} className="flex items-center gap-1.5 text-xs px-2.5 py-1">
@@ -414,6 +424,7 @@ export default function DashboardPage() {
 
             {/* Modals */}
             <DailyLogModal open={showDailyModal} onClose={() => setShowDailyModal(false)} />
+            <DeathReportModal open={showDeathModal} onClose={() => setShowDeathModal(false)} />
         </div>
     );
 }
