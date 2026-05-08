@@ -1,33 +1,78 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { HeartCrack, X, Minus, Plus } from "lucide-react";
-import { useCreateDeathReport } from "@/hooks/useApi";
+import { useSession } from "next-auth/react";
+import { deathReportsApi } from "@/lib/api";
+
+interface DeathReportItem {
+    id: string;
+    count: number;
+    notes?: string | null;
+    timestamp: string;
+}
 
 interface Props {
     open: boolean;
     onClose: () => void;
     onSuccess?: () => void;
+    editItem?: DeathReportItem | null;
 }
 
-export function DeathReportModal({ open, onClose, onSuccess }: Props) {
+export function DeathReportModal({ open, onClose, onSuccess, editItem }: Props) {
+    const { data: session } = useSession();
+    const isEdit = !!editItem;
+
+    const todayStr = new Date().toISOString().slice(0, 16); // datetime-local format
+
     const [count, setCount] = useState(1);
     const [notes, setNotes] = useState("");
+    const [timestamp, setTimestamp] = useState(todayStr);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [submitted, setSubmitted] = useState(false);
-    const { mutate, loading, error } = useCreateDeathReport();
+
+    // Isi form saat mode edit
+    useEffect(() => {
+        if (editItem) {
+            setCount(editItem.count);
+            setNotes(editItem.notes ?? "");
+            // Convert ISO timestamp ke datetime-local
+            setTimestamp(editItem.timestamp.slice(0, 16));
+        } else {
+            setCount(1);
+            setNotes("");
+            setTimestamp(todayStr);
+        }
+        setError(null);
+    }, [editItem, open]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const result = await mutate({ count, notes: notes.trim() || undefined });
-        if (result.success) {
+        if (!session?.accessToken) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const payload = {
+                count,
+                notes: notes.trim() || undefined,
+                timestamp: new Date(timestamp).toISOString(),
+            };
+            if (isEdit && editItem) {
+                await deathReportsApi.update(editItem.id, payload, session.accessToken);
+            } else {
+                await deathReportsApi.report(payload, session.accessToken);
+            }
             setSubmitted(true);
             setTimeout(() => {
                 setSubmitted(false);
-                setCount(1);
-                setNotes("");
                 onSuccess?.();
                 onClose();
-            }, 1200);
+            }, 1000);
+        } catch {
+            setError("Gagal menyimpan laporan");
+        } finally {
+            setLoading(false);
         }
     };
 
@@ -41,8 +86,12 @@ export function DeathReportModal({ open, onClose, onSuccess }: Props) {
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2.5">
-                            <div className="p-2 bg-red-50 rounded-xl"><HeartCrack className="w-5 h-5 text-red-500" /></div>
-                            <h2 className="text-base font-bold text-gray-900">Laporkan Kematian</h2>
+                            <div className="p-2 bg-red-50 rounded-xl">
+                                <HeartCrack className="w-5 h-5 text-red-500" />
+                            </div>
+                            <h2 className="text-base font-bold text-gray-900">
+                                {isEdit ? "Edit Laporan Kematian" : "Laporkan Kematian"}
+                            </h2>
                         </div>
                         <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
                             <X className="w-4 h-4" />
@@ -54,10 +103,25 @@ export function DeathReportModal({ open, onClose, onSuccess }: Props) {
                             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                                 <span className="text-2xl">✓</span>
                             </div>
-                            <p className="font-semibold text-gray-800">{count} kematian dicatat</p>
+                            <p className="font-semibold text-gray-800">{isEdit ? "Laporan diperbarui" : `${count} kematian dicatat`}</p>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-5">
+                            {/* Tanggal & Waktu */}
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Tanggal & Waktu
+                                </label>
+                                <input
+                                    type="datetime-local"
+                                    value={timestamp}
+                                    onChange={e => setTimestamp(e.target.value)}
+                                    max={todayStr}
+                                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-red-500/30 text-gray-700"
+                                />
+                            </div>
+
+                            {/* Jumlah */}
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
                                     Jumlah Kematian
@@ -80,6 +144,7 @@ export function DeathReportModal({ open, onClose, onSuccess }: Props) {
                                 <p className="text-center text-xs text-gray-400 mt-1">ekor</p>
                             </div>
 
+                            {/* Catatan */}
                             <div>
                                 <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
                                     Catatan <span className="text-gray-300 font-normal normal-case">(opsional)</span>
@@ -102,7 +167,7 @@ export function DeathReportModal({ open, onClose, onSuccess }: Props) {
                                 </button>
                                 <button type="submit" disabled={loading}
                                     className="flex-1 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors disabled:opacity-50">
-                                    {loading ? "Menyimpan..." : "Laporkan"}
+                                    {loading ? "Menyimpan..." : isEdit ? "Perbarui" : "Laporkan"}
                                 </button>
                             </div>
                         </form>
