@@ -15,7 +15,6 @@ import {
 } from "recharts";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useSensorData, useMyKandang, useCreateSensorData } from "@/hooks/useApi";
@@ -78,7 +77,6 @@ export default function SensorDataPage() {
     const [pageSize, setPageSize] = useState(10);
     const [sortKey, setSortKey] = useState<SortKey>("timestamp");
     const [sortDir, setSortDir] = useState<SortDir>("desc");
-    const [statusFilter, setStatusFilter] = useState<"all" | "normal" | "warning" | "danger">("all");
     const [hariKeFilter, setHariKeFilter] = useState("");
     const [startInput, setStartInput] = useState("");
     const [endInput, setEndInput] = useState("");
@@ -95,10 +93,9 @@ export default function SensorDataPage() {
         setStartInput(""); setEndInput("");
         setAppliedStart(""); setAppliedEnd("");
         setHariKeFilter("");
-        setStatusFilter("all");
         setCurrentPage(1);
     };
-    const hasActiveFilter = !!(appliedStart || appliedEnd || hariKeFilter || statusFilter !== "all");
+    const hasActiveFilter = !!(appliedStart || appliedEnd || hariKeFilter);
 
     // ── CHART filter state (preset buttons, independent of table) ─────────────
     const [chartPreset, setChartPreset] = useState<"6h" | "today" | "7d" | "30d" | "custom">("6h");
@@ -198,15 +195,6 @@ export default function SensorDataPage() {
             data = data.filter((r: any) => String(r.hari_ke) === hariKeFilter.trim());
         }
 
-        // Status filter
-        if (statusFilter !== "all") {
-            data = data.filter((r: any) => {
-                if (statusFilter === "danger") return r.amoniak > 10 || r.suhu > 32;
-                if (statusFilter === "warning") return (r.amoniak > 5 || r.suhu > 30) && !(r.amoniak > 10 || r.suhu > 32);
-                return r.amoniak <= 5 && r.suhu <= 30;
-            });
-        }
-
         // Sort
         data.sort((a: any, b: any) => {
             let av = a[sortKey], bv = b[sortKey];
@@ -216,7 +204,7 @@ export default function SensorDataPage() {
         });
 
         return data;
-    }, [rawData, hariKeFilter, statusFilter, sortKey, sortDir]);
+    }, [rawData, hariKeFilter, sortKey, sortDir]);
 
     const handleSort = (key: SortKey) => {
         if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
@@ -342,12 +330,6 @@ export default function SensorDataPage() {
         }
     };
 
-
-    const getStatusBadge = (suhu: number, amoniak: number) => {
-        if (amoniak > 10 || suhu > 32) return <Badge variant="danger">Bahaya</Badge>;
-        if (amoniak > 5 || suhu > 30) return <Badge variant="warning">Waspada</Badge>;
-        return <Badge variant="success">Normal</Badge>;
-    };
 
     const formatTimestamp = (ts: string) => {
         try { return new Date(ts).toLocaleString("id-ID"); } catch { return ts; }
@@ -646,7 +628,6 @@ export default function SensorDataPage() {
                                         <CardTitle className="text-base">Level Amoniak (NH₃)</CardTitle>
                                         {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
                                     </div>
-                                    <Badge variant="warning">Batas aman &lt; 10 ppm</Badge>
                                 </div>
                             </CardHeader>
                             <CardContent className="pt-4">
@@ -758,7 +739,7 @@ export default function SensorDataPage() {
                             <span className="text-sm text-gray-400">{total.toLocaleString("id-ID")} data</span>
                             {hasActiveFilter && (
                                 <span className="inline-flex items-center justify-center w-4 h-4 text-[10px] font-bold bg-green-600 text-white rounded-full">
-                                    {[statusFilter !== "all", hariKeFilter, appliedStart || appliedEnd].filter(Boolean).length}
+                                    {[hariKeFilter, appliedStart || appliedEnd].filter(Boolean).length}
                                 </span>
                             )}
                         </div>
@@ -776,21 +757,6 @@ export default function SensorDataPage() {
                     {showFilters && (
                         <div className="px-5 py-4 border-b border-gray-100 bg-gray-50/60">
                             <div className="flex flex-wrap gap-6 items-end">
-                                {/* Status */}
-                                <div className="flex flex-col gap-1">
-                                    <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Status</span>
-                                    <select
-                                        value={statusFilter}
-                                        onChange={e => setStatusFilter(e.target.value as any)}
-                                        className="text-xs border border-gray-200 rounded-lg px-2.5 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600"
-                                    >
-                                        <option value="all">Semua</option>
-                                        <option value="normal">Normal</option>
-                                        <option value="warning">Waspada</option>
-                                        <option value="danger">Bahaya</option>
-                                    </select>
-                                </div>
-
                                 {/* Hari ke */}
                                 <div className="flex flex-col gap-1">
                                     <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Hari Ke-</span>
@@ -877,7 +843,6 @@ export default function SensorDataPage() {
                                             <ThSort col="amoniak" label="Amoniak (ppm)" />
                                             <ThSort col="populasi" label="Populasi" />
                                             <ThSort col="death" label="Kematian" />
-                                            <th className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left">Status</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
@@ -896,7 +861,6 @@ export default function SensorDataPage() {
                                                 <td className={`py-3 px-4 font-medium ${row.death > 0 ? "text-red-600" : "text-gray-700"}`}>
                                                     {row.death ?? 0}
                                                 </td>
-                                                <td className="py-3 px-4">{getStatusBadge(row.suhu, row.amoniak)}</td>
                                             </tr>
                                         ))}
                                     </tbody>

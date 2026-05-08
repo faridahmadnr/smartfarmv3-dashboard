@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import Link from "next/link";
@@ -110,12 +110,17 @@ export default function CreateUserPage() {
                 <span className="text-gray-900">Tambah User</span>
             </div>
 
-            {/* Form Card */}
-            <Card className="max-w-2xl">
-                <CardHeader>
-                    <CardTitle>{isPemilik ? "Tambah Peternak" : "Tambah User"}</CardTitle>
-                </CardHeader>
-                <CardContent>
+            {/* Header */}
+            <div>
+                <h1 className="text-2xl font-bold text-gray-900">
+                    {isPemilik ? "Tambah Peternak" : "Tambah User"}
+                </h1>
+                <p className="text-gray-500 mt-1">Isi data berikut untuk membuat akun pengguna baru</p>
+            </div>
+
+            {/* Form Card — full width */}
+            <Card>
+                <CardContent className="pt-6">
                     <form onSubmit={handleSubmit} className="space-y-6">
                         {error && (
                             <div className="p-3 bg-red-50 border border-red-200 rounded-lg">
@@ -123,24 +128,22 @@ export default function CreateUserPage() {
                             </div>
                         )}
 
-                        <div className="space-y-4">
+                        {/* Section: Akun */}
+                        <div>
+                            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Informasi Akun</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Username *
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Username <span className="text-red-500">*</span></label>
                                     <Input
                                         name="username"
                                         value={formData.username}
                                         onChange={handleChange}
-                                        placeholder="username"
+                                        placeholder="contoh: budi_peternak"
                                         required
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Password *
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Password <span className="text-red-500">*</span></label>
                                     <Input
                                         type="password"
                                         name="password"
@@ -151,25 +154,24 @@ export default function CreateUserPage() {
                                     />
                                 </div>
                             </div>
+                        </div>
 
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">
-                                    Nama Lengkap *
-                                </label>
-                                <Input
-                                    name="full_name"
-                                    value={formData.full_name}
-                                    onChange={handleChange}
-                                    placeholder="Nama lengkap user"
-                                    required
-                                />
-                            </div>
-
+                        {/* Section: Profil */}
+                        <div>
+                            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Informasi Profil</h2>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="md:col-span-2">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Nama Lengkap <span className="text-red-500">*</span></label>
+                                    <Input
+                                        name="full_name"
+                                        value={formData.full_name}
+                                        onChange={handleChange}
+                                        placeholder="Nama lengkap user"
+                                        required
+                                    />
+                                </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Email *
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email <span className="text-red-500">*</span></label>
                                     <Input
                                         type="email"
                                         name="email"
@@ -180,9 +182,7 @@ export default function CreateUserPage() {
                                     />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        No. Telepon
-                                    </label>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">No. Telepon</label>
                                     <Input
                                         name="phone"
                                         value={formData.phone}
@@ -191,28 +191,29 @@ export default function CreateUserPage() {
                                     />
                                 </div>
                             </div>
+                        </div>
 
-                            {isAdmin && (
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">
-                                        Role
-                                    </label>
+                        {/* Section: Role — hanya untuk admin, tanpa pilihan admin */}
+                        {isAdmin && (
+                            <div>
+                                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Hak Akses</h2>
+                                <div className="max-w-xs">
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
                                     <Select name="role" value={formData.role} onChange={handleChange}>
-                                        <option value="admin">Admin</option>
                                         <option value="pemilik">Pemilik</option>
                                         <option value="peternak">Peternak</option>
                                     </Select>
                                 </div>
-                            )}
+                            </div>
+                        )}
 
-                            {isPemilik && (
-                                <div className="p-3 bg-gray-50 rounded-lg">
-                                    <p className="text-sm text-gray-600">
-                                        User akan dibuat sebagai <strong>Peternak</strong> di bawah akun Anda.
-                                    </p>
-                                </div>
-                            )}
-                        </div>
+                        {isPemilik && (
+                            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
+                                <p className="text-sm text-blue-700">
+                                    User akan dibuat sebagai <strong>Peternak</strong> di bawah akun Anda.
+                                </p>
+                            </div>
+                        )}
 
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                             <Link href="/users">
@@ -221,7 +222,7 @@ export default function CreateUserPage() {
                             <Button type="submit" disabled={creating}>
                                 {creating ? (
                                     <>
-                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
                                         Menyimpan...
                                     </>
                                 ) : (

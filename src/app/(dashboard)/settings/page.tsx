@@ -9,10 +9,70 @@ import { Input } from "@/components/ui/input";
 import { Toast, useToast } from "@/components/ui/toast";
 import { authApi, kandangApi } from "@/lib/api";
 import { useMyActivityLogs, useMyKandang, ActivityLog } from "@/hooks/useApi";
+import { useTheme, Theme } from "@/components/providers/theme-provider";
+import { cn } from "@/lib/utils";
 
 export default function SettingsPage() {
     const { data: session, status } = useSession();
     const { toast, show: showToast, hide: hideToast } = useToast();
+    const { theme, setTheme } = useTheme();
+
+    const themes: { id: Theme; name: string; desc: string; preview: React.ReactNode }[] = [
+        {
+            id: "green",
+            name: "Hijau",
+            desc: "Tema default",
+            preview: (
+                <div className="flex h-10 rounded overflow-hidden">
+                    <div className="w-8 bg-green-700 flex flex-col gap-1 p-1">
+                        <div className="h-1 bg-green-500 rounded" />
+                        <div className="h-1 bg-green-500/60 rounded" />
+                        <div className="h-1 bg-green-500/60 rounded" />
+                    </div>
+                    <div className="flex-1 bg-gray-100 p-1 space-y-1">
+                        <div className="h-2 bg-white rounded shadow-sm" />
+                        <div className="h-2 bg-white rounded shadow-sm w-3/4" />
+                    </div>
+                </div>
+            ),
+        },
+        {
+            id: "blue",
+            name: "Biru",
+            desc: "Aksen biru elegan",
+            preview: (
+                <div className="flex h-10 rounded overflow-hidden">
+                    <div className="w-8 bg-blue-700 flex flex-col gap-1 p-1">
+                        <div className="h-1 bg-blue-400 rounded" />
+                        <div className="h-1 bg-blue-400/60 rounded" />
+                        <div className="h-1 bg-blue-400/60 rounded" />
+                    </div>
+                    <div className="flex-1 bg-gray-100 p-1 space-y-1">
+                        <div className="h-2 bg-white rounded shadow-sm" />
+                        <div className="h-2 bg-white rounded shadow-sm w-3/4" />
+                    </div>
+                </div>
+            ),
+        },
+        {
+            id: "dark",
+            name: "Gelap",
+            desc: "Mode malam",
+            preview: (
+                <div className="flex h-10 rounded overflow-hidden">
+                    <div className="w-8 bg-slate-800 flex flex-col gap-1 p-1">
+                        <div className="h-1 bg-green-400 rounded" />
+                        <div className="h-1 bg-slate-600 rounded" />
+                        <div className="h-1 bg-slate-600 rounded" />
+                    </div>
+                    <div className="flex-1 bg-slate-900 p-1 space-y-1">
+                        <div className="h-2 bg-slate-700 rounded" />
+                        <div className="h-2 bg-slate-700 rounded w-3/4" />
+                    </div>
+                </div>
+            ),
+        },
+    ];
 
     const [passwordData, setPasswordData] = useState({
         current_password: "",
@@ -390,6 +450,49 @@ export default function SettingsPage() {
 
                 {/* Sidebar */}
                 <div className="space-y-6">
+                    {/* Theme Switcher */}
+                    <Card>
+                        <CardHeader>
+                            <CardTitle className="flex items-center gap-2">
+                                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h12a2 2 0 002-2v-4a2 2 0 00-2-2h-2.343M11 7.343l1.657-1.657a2 2 0 012.828 0l2.829 2.829a2 2 0 010 2.828l-8.486 8.485M7 17h.01" />
+                                </svg>
+                                Tema Tampilan
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-2">
+                                {themes.map((t) => (
+                                    <button
+                                        key={t.id}
+                                        onClick={() => setTheme(t.id)}
+                                        className={cn(
+                                            "w-full p-3 rounded-lg border-2 transition-all text-left",
+                                            theme === t.id
+                                                ? "border-green-500 bg-green-50"
+                                                : "border-gray-200 hover:border-gray-300 bg-white"
+                                        )}
+                                    >
+                                        <div className="mb-2">{t.preview}</div>
+                                        <div className="flex items-center justify-between">
+                                            <div>
+                                                <p className="text-sm font-medium text-gray-900">{t.name}</p>
+                                                <p className="text-xs text-gray-500">{t.desc}</p>
+                                            </div>
+                                            {theme === t.id && (
+                                                <div className="w-4 h-4 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                                                    <svg className="w-2.5 h-2.5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                                                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                                    </svg>
+                                                </div>
+                                            )}
+                                        </div>
+                                    </button>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+
                     <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
