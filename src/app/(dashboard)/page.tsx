@@ -314,7 +314,6 @@ export default function DashboardPage() {
                                                 <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Kelembaban</th>
                                                 <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Amoniak (ppm)</th>
                                                 <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Populasi</th>
-                                                <th className="text-right py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Kematian</th>
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
@@ -329,7 +328,6 @@ export default function DashboardPage() {
                                                         {typeof row.amoniak === "number" ? row.amoniak.toFixed(3) : "-"}
                                                     </td>
                                                     <td className="py-3 px-4 text-right text-gray-700">{row.populasi?.toLocaleString() || "-"}</td>
-                                                    <td className={`py-3 px-4 text-right font-medium ${row.death > 0 ? "text-red-600" : "text-gray-700"}`}>{row.death ?? 0}</td>
                                                 </tr>
                                             ))}
                                         </tbody>
