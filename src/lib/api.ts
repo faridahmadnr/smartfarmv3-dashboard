@@ -280,14 +280,33 @@ export const predictionsApi = {
         });
     },
 
-    getHistory: async (params?: { type?: string; limit?: number; start_date?: string; end_date?: string }, token?: string) => {
+    getHistory: async (params?: {
+        type?: string;
+        page?: number;
+        page_size?: number;
+        sort_by?: string;
+        sort_order?: "asc" | "desc";
+        start_date?: string;
+        end_date?: string;
+    }, token?: string) => {
         const searchParams = new URLSearchParams();
         if (params?.type) searchParams.set("type", params.type);
-        if (params?.limit) searchParams.set("limit", params.limit.toString());
+        if (params?.page) searchParams.set("page", params.page.toString());
+        if (params?.page_size) searchParams.set("page_size", params.page_size.toString());
+        if (params?.sort_by) searchParams.set("sort_by", params.sort_by);
+        if (params?.sort_order) searchParams.set("sort_order", params.sort_order);
         if (params?.start_date) searchParams.set("start_date", params.start_date);
         if (params?.end_date) searchParams.set("end_date", params.end_date);
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/predictions/history${query ? `?${query}` : ""}`, { token });
+    },
+
+    getSummary: async (params?: { start_date?: string; end_date?: string }, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (params?.start_date) searchParams.set("start_date", params.start_date);
+        if (params?.end_date) searchParams.set("end_date", params.end_date);
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/predictions/summary${query ? `?${query}` : ""}`, { token });
     },
 };
 

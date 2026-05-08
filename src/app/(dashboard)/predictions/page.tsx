@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import {
     RefreshCw,
@@ -26,6 +26,11 @@ interface PredictionRecord {
     raw_prediction: number | null;
     input_data: Record<string, any> | null;
     created_at: string;
+}
+
+interface PredictionSummary {
+    classification: { total: number; normal: number; abnormal: number };
+    forecasting: { total: number; safe: number; risk: number };
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -76,7 +81,14 @@ export default function PredictionsPage() {
     const { data: session, status } = useSession();
     const { data: modelInfo } = useModelInfo();
 
-    const [records, setRecords] = useState<PredictionRecord[]>([]);
+    const [pagedRecords, setPagedRecords] = useState<PredictionRecord[]>([]);
+    const [totalRecords, setTotalRecords] = useState(0);
+    const [summary, setSummary] = useState<PredictionSummary>({
+        classification: { total: 0, normal: 0, abnormal: 0 },
+        forecasting: { total: 0, safe: 0, risk: 0 },
+    });
+    const [latestClassify, setLatestClassify] = useState<PredictionRecord | null>(null);
+    const [latestForecast, setLatestForecast] = useState<PredictionRecord | null>(null);
     const [loadingHistory, setLoadingHistory] = useState(false);
     const [activeTab, setActiveTab] = useState<"classification" | "forecasting">("classification");
     const [showModelInfo, setShowModelInfo] = useState(false);
@@ -97,8 +109,13 @@ export default function PredictionsPage() {
     const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
 
     const handleSort = (key: string) => {
-        if (sortKey === key) setSortDir(d => d === "asc" ? "desc" : "asc");
-        else { setSortKey(key); setSortDir("desc"); }
+        if (sortKey === key) {
+            setSortDir(d => d === "asc" ? "desc" : "asc");
+        } else {
+            setSortKey(key);
+            setSortDir("desc");
+        }
+        setHistoryPage(1);
     };
 
     const Th = ({ col, label, className = "" }: { col: string; label: string; className?: string }) => (
@@ -117,35 +134,94 @@ export default function PredictionsPage() {
 
     const isAdmin = session?.user?.role === "admin";
 
-    // Reset page on tab change
-    useEffect(() => { setHistoryPage(1); }, [activeTab]);
-
-    // ── Fetch ────────────────────────────────────────────────────────────────
-    const loadHistory = useCallback(async (start?: string, end?: string) => {
+    // ── Fetch summary (stats) ────────────────────────────────────────────────
+    const loadSummary = useCallback(async (start?: string, end?: string) => {
         if (!session?.accessToken) return;
-        setLoadingHistory(true);
         try {
             const params: any = {};
             if (start) params.start_date = start;
             if (end) params.end_date = end;
+            const res: any = await predictionsApi.getSummary(params, session.accessToken);
+            const d = res?.data?.data ?? res?.data ?? res;
+            if (d?.classification) setSummary(d);
+        } catch { /* silent */ }
+    }, [session?.accessToken]);
+
+    // ── Fetch history (server-side sort + pagination) ────────────────────────
+    const loadHistory = useCallback(async (opts?: {
+        start?: string; end?: string;
+        page?: number; pageSize?: number;
+        sortBy?: string; sortOrder?: "asc" | "desc";
+        type?: string;
+    }) => {
+        if (!session?.accessToken) return;
+        setLoadingHistory(true);
+        try {
+            const params: any = {
+                type: opts?.type ?? activeTab,
+                page: opts?.page ?? historyPage,
+                page_size: opts?.pageSize ?? historyPageSize,
+                sort_by: opts?.sortBy ?? sortKey,
+                sort_order: opts?.sortOrder ?? sortDir,
+            };
+            if (opts?.start ?? appliedStart) params.start_date = opts?.start ?? appliedStart;
+            if (opts?.end ?? appliedEnd) params.end_date = opts?.end ?? appliedEnd;
+
             const res: any = await predictionsApi.getHistory(params, session.accessToken);
-            let items: PredictionRecord[] = [];
-            if (Array.isArray(res)) items = res;
-            else if (Array.isArray(res?.data)) items = res.data;
-            else if (Array.isArray(res?.data?.data)) items = res.data.data;
-            setRecords(items);
+            const d = res?.data?.data ?? res?.data ?? res;
+            const items: PredictionRecord[] = Array.isArray(d?.items) ? d.items : Array.isArray(d) ? d : [];
+            const total: number = d?.total ?? items.length;
+
+            setPagedRecords(items);
+            setTotalRecords(total);
+
+            // Latest cards: ambil item pertama dari respons jika tab sesuai
+            if ((opts?.type ?? activeTab) === "classification" && items.length > 0 && (opts?.sortBy ?? sortKey) === "created_at" && (opts?.sortOrder ?? sortDir) === "desc") {
+                setLatestClassify(items[0]);
+            }
+            if ((opts?.type ?? activeTab) === "forecasting" && items.length > 0 && (opts?.sortBy ?? sortKey) === "created_at" && (opts?.sortOrder ?? sortDir) === "desc") {
+                setLatestForecast(items[0]);
+            }
         } catch (err) {
             console.error("Failed to load prediction history:", err);
         } finally {
             setLoadingHistory(false);
         }
-    }, [session?.accessToken]);
+    }, [session?.accessToken, activeTab, historyPage, historyPageSize, sortKey, sortDir, appliedStart, appliedEnd]);
+
+    // Refetch saat tab, page, sort berubah
+    useEffect(() => {
+        if (status === "authenticated" && session?.accessToken) {
+            loadHistory();
+            loadSummary(appliedStart || undefined, appliedEnd || undefined);
+        }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [status, session?.accessToken, activeTab, historyPage, historyPageSize, sortKey, sortDir]);
+
+    // Fetch latest cards untuk kedua tab saat pertama load
+    useEffect(() => {
+        if (status !== "authenticated" || !session?.accessToken) return;
+        const token = session.accessToken;
+        predictionsApi.getHistory({ type: "classification", page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc" }, token)
+            .then((res: any) => {
+                const d = res?.data?.data ?? res?.data ?? res;
+                const items = Array.isArray(d?.items) ? d.items : [];
+                if (items[0]) setLatestClassify(items[0]);
+            }).catch(() => {});
+        predictionsApi.getHistory({ type: "forecasting", page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc" }, token)
+            .then((res: any) => {
+                const d = res?.data?.data ?? res?.data ?? res;
+                const items = Array.isArray(d?.items) ? d.items : [];
+                if (items[0]) setLatestForecast(items[0]);
+            }).catch(() => {});
+    }, [status, session?.accessToken]);
 
     const applyFilter = () => {
         setAppliedStart(startInput);
         setAppliedEnd(endInput);
         setHistoryPage(1);
-        loadHistory(startInput || undefined, endInput || undefined);
+        loadHistory({ start: startInput || undefined, end: endInput || undefined, page: 1 });
+        loadSummary(startInput || undefined, endInput || undefined);
     };
 
     const resetFilter = () => {
@@ -154,46 +230,13 @@ export default function PredictionsPage() {
         setAppliedStart("");
         setAppliedEnd("");
         setHistoryPage(1);
-        loadHistory();
+        loadHistory({ start: undefined, end: undefined, page: 1 });
+        loadSummary();
     };
 
     const isFiltered = !!(appliedStart || appliedEnd);
 
-    useEffect(() => {
-        if (status === "authenticated" && session?.accessToken) {
-            loadHistory();
-        }
-    }, [status, session?.accessToken, loadHistory]);
-
-    // ── Derived ──────────────────────────────────────────────────────────────
-    const classifyRecords = useMemo(() => records.filter(r => r.type === "classification"), [records]);
-    const forecastRecords = useMemo(() => records.filter(r => r.type === "forecasting"), [records]);
-
-    const latestClassify = classifyRecords[0] ?? null;
-    const latestForecast = forecastRecords[0] ?? null;
-
-    const normalCount   = classifyRecords.filter(r => r.prediction === "Normal").length;
-    const abnormalCount = classifyRecords.filter(r => r.prediction === "Abnormal").length;
-    const riskCount     = forecastRecords.filter(r => (r.predicted_death ?? 0) > 0).length;
-    const safeCount     = forecastRecords.filter(r => (r.predicted_death ?? 0) === 0).length;
-
-    const tabRecords = useMemo(() => {
-        const base = activeTab === "classification" ? classifyRecords : forecastRecords;
-        return [...base].sort((a, b) => {
-            let av: any, bv: any;
-            if (sortKey === "created_at") { av = new Date(a.created_at).getTime(); bv = new Date(b.created_at).getTime(); }
-            else if (sortKey === "prediction") { av = a.prediction ?? ""; bv = b.prediction ?? ""; }
-            else if (sortKey === "confidence") { av = a.confidence ?? -1; bv = b.confidence ?? -1; }
-            else if (sortKey === "predicted_death") { av = a.predicted_death ?? -1; bv = b.predicted_death ?? -1; }
-            else if (sortKey === "raw_prediction") { av = a.raw_prediction ?? -1; bv = b.raw_prediction ?? -1; }
-            else { av = 0; bv = 0; }
-            if (av < bv) return sortDir === "asc" ? -1 : 1;
-            if (av > bv) return sortDir === "asc" ? 1 : -1;
-            return 0;
-        });
-    }, [activeTab, classifyRecords, forecastRecords, sortKey, sortDir]);
-    const totalPages   = Math.max(1, Math.ceil(tabRecords.length / historyPageSize));
-    const pagedRecords = tabRecords.slice((historyPage - 1) * historyPageSize, historyPage * historyPageSize);
+    const totalPages = Math.max(1, Math.ceil(totalRecords / historyPageSize));
 
     const classModel    = (modelInfo as any)?.data?.classification_model ?? (modelInfo as any)?.classification_model;
     const forecastModel = (modelInfo as any)?.data?.forecasting_model    ?? (modelInfo as any)?.forecasting_model;
@@ -213,7 +256,7 @@ export default function PredictionsPage() {
             <div className="flex items-center justify-between gap-4">
                 <h1 className="text-xl font-bold text-gray-900">Prediksi Machine Learning</h1>
                 <button
-                    onClick={() => loadHistory(appliedStart || undefined, appliedEnd || undefined)}
+                    onClick={() => { loadHistory(); loadSummary(appliedStart || undefined, appliedEnd || undefined); }}
                     disabled={loadingHistory}
                     className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50"
                 >
@@ -231,9 +274,9 @@ export default function PredictionsPage() {
                     </p>
                     <div className="grid grid-cols-3 gap-3">
                         {[
-                            { label: "Total", value: classifyRecords.length, icon: <ShieldCheck className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
-                            { label: "Normal", value: normalCount, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-green-600 bg-green-50" },
-                            { label: "Abnormal", value: abnormalCount, icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-500 bg-red-50" },
+                            { label: "Total", value: summary.classification.total, icon: <ShieldCheck className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
+                            { label: "Normal", value: summary.classification.normal, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-green-600 bg-green-50" },
+                            { label: "Abnormal", value: summary.classification.abnormal, icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-500 bg-red-50" },
                         ].map(s => (
                             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                                 <div className="flex items-center justify-between mb-2">
@@ -253,9 +296,9 @@ export default function PredictionsPage() {
                     </p>
                     <div className="grid grid-cols-3 gap-3">
                         {[
-                            { label: "Total", value: forecastRecords.length, icon: <TrendingUp className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
-                            { label: "Prediksi Aman", value: safeCount, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-green-600 bg-green-50" },
-                            { label: "Ada Risiko", value: riskCount, icon: <HeartCrack className="w-4 h-4" />, color: "text-orange-500 bg-orange-50" },
+                            { label: "Total", value: summary.forecasting.total, icon: <TrendingUp className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
+                            { label: "Prediksi Aman", value: summary.forecasting.safe, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-green-600 bg-green-50" },
+                            { label: "Ada Risiko", value: summary.forecasting.risk, icon: <HeartCrack className="w-4 h-4" />, color: "text-orange-500 bg-orange-50" },
                         ].map(s => (
                             <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
                                 <div className="flex items-center justify-between mb-2">
@@ -391,7 +434,7 @@ export default function PredictionsPage() {
                         >
                             <ShieldCheck className="w-3.5 h-3.5" />
                             Klasifikasi
-                            <span className="text-[10px] text-gray-400">{classifyRecords.length}</span>
+                            <span className="text-[10px] text-gray-400">{summary.classification.total}</span>
                         </button>
                         <button
                             onClick={() => setActiveTab("forecasting")}
@@ -399,7 +442,7 @@ export default function PredictionsPage() {
                         >
                             <TrendingUp className="w-3.5 h-3.5" />
                             Forecasting
-                            <span className="text-[10px] text-gray-400">{forecastRecords.length}</span>
+                            <span className="text-[10px] text-gray-400">{summary.forecasting.total}</span>
                         </button>
                     </div>
                     <button
@@ -456,7 +499,7 @@ export default function PredictionsPage() {
                         <div className="py-12 flex justify-center">
                             <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-green-600" />
                         </div>
-                    ) : tabRecords.length === 0 ? (
+                    ) : pagedRecords.length === 0 ? (
                         <div className="py-14 text-center">
                             <div className="w-12 h-12 mx-auto mb-3 rounded-full bg-gray-50 flex items-center justify-center">
                                 <ShieldCheck className="w-6 h-6 text-gray-300" />
@@ -628,13 +671,13 @@ export default function PredictionsPage() {
                     )}
 
                     {/* Pagination */}
-                    {!loadingHistory && tabRecords.length > 0 && (
+                    {!loadingHistory && totalRecords > 0 && (
                         <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100">
                             <div className="flex items-center gap-3">
                                 <p className="text-xs text-gray-400">
                                     Halaman <span className="font-semibold text-gray-700">{historyPage}</span> dari{" "}
                                     <span className="font-semibold text-gray-700">{totalPages}</span>
-                                    {" "}· {tabRecords.length} total
+                                    {" "}· {totalRecords} total
                                 </p>
                                 <div className="flex items-center gap-1.5 text-xs text-gray-400">
                                     <span>Tampilkan</span>
