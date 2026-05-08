@@ -73,11 +73,14 @@ export default function DashboardPage() {
     const fetchPredictions = useCallback(async () => {
         if (!session?.accessToken) return;
         try {
-            const res: any = await predictionsApi.getHistory({ limit: 20 }, session.accessToken);
-            const items: any[] = Array.isArray(res?.data) ? res.data
-                : (Array.isArray(res?.data?.data) ? res.data.data : []);
-            setLatestClassify(items.find((r: any) => r.type === "classification") ?? null);
-            setLatestForecast(items.find((r: any) => r.type === "forecasting") ?? null);
+            const [clsRes, fcRes]: any[] = await Promise.all([
+                predictionsApi.getHistory({ page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc", type: "classification" }, session.accessToken),
+                predictionsApi.getHistory({ page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc", type: "forecasting" }, session.accessToken),
+            ]);
+            const clsItems = Array.isArray(clsRes?.data?.data?.items) ? clsRes.data.data.items : [];
+            const fcItems  = Array.isArray(fcRes?.data?.data?.items)  ? fcRes.data.data.items  : [];
+            setLatestClassify(clsItems[0] ?? null);
+            setLatestForecast(fcItems[0] ?? null);
         } catch { /* ignore */ }
     }, [session?.accessToken]);
 
