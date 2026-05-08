@@ -1,24 +1,31 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import { BookOpen, RefreshCw, Plus, RotateCcw, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, HeartCrack, Skull } from "lucide-react";
+import { BookOpen, RefreshCw, Plus, RotateCcw, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, HeartCrack, Skull, Pencil, Trash2 } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { DeathReportModal } from "@/components/modals/DeathReportModal";
-import { dailyLogsApi } from "@/lib/api";
+import { dailyLogsApi, deathReportsApi } from "@/lib/api";
 import { useDeathReports, useTodayDeathTotal } from "@/hooks/useApi";
 
 interface DailyLogItem {
     id: string;
     date: string;
-    pakan?: number;
-    minum?: number;
-    populasi?: number;
-    bobot?: number;
-    notes?: string;
+    pakan?: number | null;
+    minum?: number | null;
+    populasi?: number | null;
+    bobot?: number | null;
+    notes?: string | null;
     created_at: string;
     updated_at: string;
+}
+
+interface DeathReportItem {
+    id: string;
+    count: number;
+    notes?: string | null;
+    timestamp: string;
 }
 
 const PER_PAGE = 20;
@@ -33,14 +40,20 @@ export default function DailyLogsPage() {
     const [loading, setLoading] = useState(true);
     const [page, setPage] = useState(1);
     const [showModal, setShowModal] = useState(false);
+    const [editLog, setEditLog] = useState<DailyLogItem | null>(null);
 
     // Death report state
     const [showDeathModal, setShowDeathModal] = useState(false);
+    const [editDeath, setEditDeath] = useState<DeathReportItem | null>(null);
     const [deathPage, setDeathPage] = useState(1);
     const DEATH_PER_PAGE = 10;
     const { data: deathData, loading: deathLoading, refetch: refetchDeaths } = useDeathReports({ page: deathPage, per_page: DEATH_PER_PAGE });
     const { total: todayDeathTotal, refetch: refetchDeathTotal } = useTodayDeathTotal();
     const deathTotalPages = Math.max(1, Math.ceil((deathData?.total ?? 0) / DEATH_PER_PAGE));
+
+    // Delete confirm state
+    const [deleteTarget, setDeleteTarget] = useState<{ type: "log" | "death"; id: string } | null>(null);
+    const [deleteLoading, setDeleteLoading] = useState(false);
 
     // Filter state
     const [startInput, setStartInput] = useState("");
@@ -87,6 +100,26 @@ export default function DailyLogsPage() {
         refetchDeathTotal();
     };
 
+    const handleDelete = async () => {
+        if (!deleteTarget || !session?.accessToken) return;
+        setDeleteLoading(true);
+        try {
+            if (deleteTarget.type === "log") {
+                await dailyLogsApi.delete(deleteTarget.id, session.accessToken);
+                load();
+            } else {
+                await deathReportsApi.delete(deleteTarget.id, session.accessToken);
+                refetchDeaths();
+                refetchDeathTotal();
+            }
+        } catch {
+            // silent — item may already be gone
+        } finally {
+            setDeleteLoading(false);
+            setDeleteTarget(null);
+        }
+    };
+
     return (
         <div className="space-y-6">
             {/* Header */}
@@ -103,11 +136,11 @@ export default function DailyLogsPage() {
                     </button>
                     {isPeternak && (
                         <>
-                            <button onClick={() => setShowDeathModal(true)}
+                            <button onClick={() => { setEditDeath(null); setShowDeathModal(true); }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">
                                 <HeartCrack className="w-3.5 h-3.5" />Laporkan Kematian
                             </button>
-                            <button onClick={() => setShowModal(true)}
+                            <button onClick={() => { setEditLog(null); setShowModal(true); }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-lg transition-colors">
                                 <Plus className="w-3.5 h-3.5" />Input Harian
                             </button>
@@ -170,7 +203,7 @@ export default function DailyLogsPage() {
                             </div>
                             <p className="text-sm text-gray-400">{hasFilter ? "Tidak ada data untuk rentang tanggal ini" : "Belum ada log harian"}</p>
                             {!hasFilter && isPeternak && (
-                                <button onClick={() => setShowModal(true)} className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
+                                <button onClick={() => { setEditLog(null); setShowModal(true); }} className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
                                     + Input sekarang
                                 </button>
                             )}
@@ -180,8 +213,8 @@ export default function DailyLogsPage() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="bg-gray-50/80">
-                                        {["Tanggal", "Pakan (kg)", "Minum (L)", "Populasi", "Bobot (g)", "Catatan"].map(h => (
-                                            <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
+                                        {["Tanggal", "Pakan (kg)", "Minum (L)", "Populasi", "Bobot (g)", "Catatan", ...(isPeternak ? [""] : [])].map((h, i) => (
+                                            <th key={i} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
@@ -194,6 +227,20 @@ export default function DailyLogsPage() {
                                             <td className="py-3 px-4 text-gray-700 tabular-nums">{row.populasi?.toLocaleString() ?? <span className="text-gray-300">—</span>}</td>
                                             <td className="py-3 px-4 text-gray-700 tabular-nums">{row.bobot ?? <span className="text-gray-300">—</span>}</td>
                                             <td className="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">{row.notes || <span className="text-gray-300">—</span>}</td>
+                                            {isPeternak && (
+                                                <td className="py-3 px-4 whitespace-nowrap">
+                                                    <div className="flex items-center gap-1">
+                                                        <button onClick={() => { setEditLog(row); setShowModal(true); }}
+                                                            className="p-1.5 rounded-lg text-gray-400 hover:text-emerald-600 hover:bg-emerald-50 transition-colors">
+                                                            <Pencil className="w-3.5 h-3.5" />
+                                                        </button>
+                                                        <button onClick={() => setDeleteTarget({ type: "log", id: row.id })}
+                                                            className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                                            <Trash2 className="w-3.5 h-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            )}
                                         </tr>
                                     ))}
                                 </tbody>
@@ -253,7 +300,7 @@ export default function DailyLogsPage() {
                             </div>
                             <p className="text-sm text-gray-400">Belum ada laporan kematian</p>
                             {isPeternak && (
-                                <button onClick={() => setShowDeathModal(true)} className="mt-3 text-xs text-red-600 hover:text-red-700 font-medium">
+                                <button onClick={() => { setEditDeath(null); setShowDeathModal(true); }} className="mt-3 text-xs text-red-600 hover:text-red-700 font-medium">
                                     + Laporkan sekarang
                                 </button>
                             )}
@@ -263,8 +310,8 @@ export default function DailyLogsPage() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="bg-gray-50/80">
-                                        {["Waktu Laporan", "Jumlah", "Catatan"].map(h => (
-                                            <th key={h} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
+                                        {["Waktu Laporan", "Jumlah", "Catatan", ...(isPeternak ? [""] : [])].map((h, i) => (
+                                            <th key={i} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
                                         ))}
                                     </tr>
                                 </thead>
@@ -283,6 +330,20 @@ export default function DailyLogsPage() {
                                                 <td className="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">
                                                     {row.notes || <span className="text-gray-300">—</span>}
                                                 </td>
+                                                {isPeternak && (
+                                                    <td className="py-3 px-4 whitespace-nowrap">
+                                                        <div className="flex items-center gap-1">
+                                                            <button onClick={() => { setEditDeath(row); setShowDeathModal(true); }}
+                                                                className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                                                <Pencil className="w-3.5 h-3.5" />
+                                                            </button>
+                                                            <button onClick={() => setDeleteTarget({ type: "death", id: row.id })}
+                                                                className="p-1.5 rounded-lg text-gray-400 hover:text-red-600 hover:bg-red-50 transition-colors">
+                                                                <Trash2 className="w-3.5 h-3.5" />
+                                                            </button>
+                                                        </div>
+                                                    </td>
+                                                )}
                                             </tr>
                                         );
                                     })}
@@ -307,8 +368,43 @@ export default function DailyLogsPage() {
                 </CardContent>
             </Card>
 
-            <DailyLogModal open={showModal} onClose={() => setShowModal(false)} onSuccess={load} />
-            <DeathReportModal open={showDeathModal} onClose={() => setShowDeathModal(false)} onSuccess={handleDeathSuccess} />
+            {/* Delete confirm dialog */}
+            {deleteTarget && (
+                <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+                    <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setDeleteTarget(null)} />
+                    <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-xs p-6">
+                        <h3 className="text-base font-bold text-gray-900 mb-2">Hapus Data?</h3>
+                        <p className="text-sm text-gray-500 mb-6">
+                            {deleteTarget.type === "log"
+                                ? "Data log harian ini akan dihapus permanen."
+                                : "Laporan kematian ini akan dihapus permanen."}
+                        </p>
+                        <div className="flex gap-2">
+                            <button onClick={() => setDeleteTarget(null)}
+                                className="flex-1 py-2.5 text-sm font-medium text-gray-600 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                                Batal
+                            </button>
+                            <button onClick={handleDelete} disabled={deleteLoading}
+                                className="flex-1 py-2.5 text-sm font-semibold text-white bg-red-600 hover:bg-red-700 rounded-xl transition-colors disabled:opacity-50">
+                                {deleteLoading ? "Menghapus..." : "Hapus"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            <DailyLogModal
+                open={showModal}
+                onClose={() => { setShowModal(false); setEditLog(null); }}
+                onSuccess={load}
+                editItem={editLog}
+            />
+            <DeathReportModal
+                open={showDeathModal}
+                onClose={() => { setShowDeathModal(false); setEditDeath(null); }}
+                onSuccess={handleDeathSuccess}
+                editItem={editDeath}
+            />
         </div>
     );
 }

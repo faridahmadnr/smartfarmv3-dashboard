@@ -1,49 +1,91 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { BookOpen, X } from "lucide-react";
-import { useCreateDailyLog, useTodayDailyLog } from "@/hooks/useApi";
+import { useSession } from "next-auth/react";
+import { dailyLogsApi } from "@/lib/api";
+
+interface DailyLogItem {
+    id: string;
+    date: string;
+    pakan?: number | null;
+    minum?: number | null;
+    populasi?: number | null;
+    bobot?: number | null;
+    notes?: string | null;
+}
 
 interface Props {
     open: boolean;
     onClose: () => void;
     onSuccess?: () => void;
+    editItem?: DailyLogItem | null;
 }
 
-export function DailyLogModal({ open, onClose, onSuccess }: Props) {
-    const { data: todayLog } = useTodayDailyLog();
-    const { mutate, loading, error } = useCreateDailyLog();
+export function DailyLogModal({ open, onClose, onSuccess, editItem }: Props) {
+    const { data: session } = useSession();
+    const isEdit = !!editItem;
 
+    const todayStr = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+
+    const [date, setDate] = useState(todayStr);
     const [pakan, setPakan] = useState("");
     const [minum, setMinum] = useState("");
     const [populasi, setPopulasi] = useState("");
     const [bobot, setBobot] = useState("");
     const [notes, setNotes] = useState("");
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState<string | null>(null);
     const [submitted, setSubmitted] = useState(false);
+
+    useEffect(() => {
+        if (editItem) {
+            setDate(editItem.date?.slice(0, 10) ?? todayStr);
+            setPakan(editItem.pakan?.toString() ?? "");
+            setMinum(editItem.minum?.toString() ?? "");
+            setPopulasi(editItem.populasi?.toString() ?? "");
+            setBobot(editItem.bobot?.toString() ?? "");
+            setNotes(editItem.notes ?? "");
+        } else {
+            setDate(todayStr);
+            setPakan(""); setMinum(""); setPopulasi(""); setBobot(""); setNotes("");
+        }
+        setError(null);
+    }, [editItem, open]);
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        const result = await mutate({
-            pakan: pakan ? parseFloat(pakan) : undefined,
-            minum: minum ? parseFloat(minum) : undefined,
-            populasi: populasi ? parseInt(populasi) : undefined,
-            bobot: bobot ? parseFloat(bobot) : undefined,
-            notes: notes.trim() || undefined,
-        });
-        if (result.success) {
+        if (!session?.accessToken) return;
+        setLoading(true);
+        setError(null);
+        try {
+            const payload = {
+                date,
+                pakan: pakan ? parseFloat(pakan) : undefined,
+                minum: minum ? parseFloat(minum) : undefined,
+                populasi: populasi ? parseInt(populasi) : undefined,
+                bobot: bobot ? parseFloat(bobot) : undefined,
+                notes: notes.trim() || undefined,
+            };
+            if (isEdit && editItem) {
+                await dailyLogsApi.update(editItem.id, payload, session.accessToken);
+            } else {
+                await dailyLogsApi.save(payload, session.accessToken);
+            }
             setSubmitted(true);
             setTimeout(() => {
                 setSubmitted(false);
-                setPakan(""); setMinum(""); setPopulasi(""); setBobot(""); setNotes("");
                 onSuccess?.();
                 onClose();
             }, 1200);
+        } catch {
+            setError("Gagal menyimpan log harian");
+        } finally {
+            setLoading(false);
         }
     };
 
     if (!open) return null;
-
-    const today = new Date().toLocaleDateString("id-ID", { day: "numeric", month: "long", year: "numeric" });
 
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -51,38 +93,49 @@ export function DailyLogModal({ open, onClose, onSuccess }: Props) {
             <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
                 <div className="h-1.5 w-full bg-emerald-500" />
                 <div className="p-6">
-                    <div className="flex items-center justify-between mb-1">
+                    <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2.5">
-                            <div className="p-2 bg-emerald-50 rounded-xl"><BookOpen className="w-5 h-5 text-emerald-500" /></div>
-                            <h2 className="text-base font-bold text-gray-900">Input Log Harian</h2>
+                            <div className="p-2 bg-emerald-50 rounded-xl">
+                                <BookOpen className="w-5 h-5 text-emerald-500" />
+                            </div>
+                            <h2 className="text-base font-bold text-gray-900">
+                                {isEdit ? "Edit Log Harian" : "Input Log Harian"}
+                            </h2>
                         </div>
                         <button onClick={onClose} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors">
                             <X className="w-4 h-4" />
                         </button>
                     </div>
-                    <p className="text-xs text-gray-400 mb-5 ml-11">{today}</p>
-
-                    {todayLog && (
-                        <div className="mb-4 p-3 bg-emerald-50 rounded-xl border border-emerald-100 text-xs text-emerald-700">
-                            Data hari ini sudah ada. Input baru akan memperbarui data yang ada.
-                        </div>
-                    )}
 
                     {submitted ? (
                         <div className="py-8 text-center">
                             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-3">
                                 <span className="text-2xl">✓</span>
                             </div>
-                            <p className="font-semibold text-gray-800">Log harian tersimpan</p>
+                            <p className="font-semibold text-gray-800">{isEdit ? "Log harian diperbarui" : "Log harian tersimpan"}</p>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit} className="space-y-4">
+                            {/* Tanggal */}
+                            <div>
+                                <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                                    Tanggal
+                                </label>
+                                <input
+                                    type="date"
+                                    value={date}
+                                    onChange={e => setDate(e.target.value)}
+                                    max={todayStr}
+                                    className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-gray-700"
+                                />
+                            </div>
+
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <label className="block text-xs font-semibold text-gray-500 mb-1">Pakan (kg)</label>
                                     <input type="number" min={0} step="0.1" value={pakan}
                                         onChange={e => setPakan(e.target.value)}
-                                        placeholder={todayLog?.pakan?.toString() ?? "0.0"}
+                                        placeholder="0.0"
                                         className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-gray-700"
                                     />
                                 </div>
@@ -90,7 +143,7 @@ export function DailyLogModal({ open, onClose, onSuccess }: Props) {
                                     <label className="block text-xs font-semibold text-gray-500 mb-1">Minum (liter)</label>
                                     <input type="number" min={0} step="0.1" value={minum}
                                         onChange={e => setMinum(e.target.value)}
-                                        placeholder={todayLog?.minum?.toString() ?? "0.0"}
+                                        placeholder="0.0"
                                         className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-gray-700"
                                     />
                                 </div>
@@ -98,7 +151,7 @@ export function DailyLogModal({ open, onClose, onSuccess }: Props) {
                                     <label className="block text-xs font-semibold text-gray-500 mb-1">Populasi (ekor)</label>
                                     <input type="number" min={1} value={populasi}
                                         onChange={e => setPopulasi(e.target.value)}
-                                        placeholder={todayLog?.populasi?.toString() ?? ""}
+                                        placeholder="—"
                                         className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-gray-700"
                                     />
                                 </div>
@@ -108,7 +161,7 @@ export function DailyLogModal({ open, onClose, onSuccess }: Props) {
                                     </label>
                                     <input type="number" min={0} step="0.1" value={bobot}
                                         onChange={e => setBobot(e.target.value)}
-                                        placeholder={todayLog?.bobot?.toString() ?? "—"}
+                                        placeholder="—"
                                         className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-gray-700"
                                     />
                                 </div>
@@ -134,7 +187,7 @@ export function DailyLogModal({ open, onClose, onSuccess }: Props) {
                                 </button>
                                 <button type="submit" disabled={loading}
                                     className="flex-1 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors disabled:opacity-50">
-                                    {loading ? "Menyimpan..." : "Simpan"}
+                                    {loading ? "Menyimpan..." : isEdit ? "Perbarui" : "Simpan"}
                                 </button>
                             </div>
                         </form>

@@ -405,6 +405,21 @@ export const deathReportsApi = {
     getTodayTotal: async (token?: string) => {
         return fetchWithAuth(`${API_PREFIX}/death-reports/today-total`, { token });
     },
+
+    update: async (id: string, data: { count?: number; notes?: string; timestamp?: string }, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/death-reports/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(data),
+            token,
+        });
+    },
+
+    delete: async (id: string, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/death-reports/${id}`, {
+            method: "DELETE",
+            token,
+        });
+    },
 };
 
 // Daily Logs API
@@ -436,6 +451,21 @@ export const dailyLogsApi = {
         if (params?.end_date) searchParams.set("end_date", params.end_date);
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/daily-logs${query ? `?${query}` : ""}`, { token });
+    },
+
+    update: async (id: string, data: { date?: string; pakan?: number; minum?: number; populasi?: number; bobot?: number; notes?: string }, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/daily-logs/${id}`, {
+            method: "PUT",
+            body: JSON.stringify(data),
+            token,
+        });
+    },
+
+    delete: async (id: string, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/daily-logs/${id}`, {
+            method: "DELETE",
+            token,
+        });
     },
 };
 
