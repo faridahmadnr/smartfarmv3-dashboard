@@ -2,6 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useSession } from "next-auth/react";
+import { useRealtimeNotifications } from "@/components/notification-provider";
+import { useTick } from "@/hooks/useTick";
 import {
     Bell, AlertTriangle, HeartCrack, CheckCircle2,
     RefreshCw, BookCheck, Thermometer, Droplets, Wind,
@@ -140,7 +142,10 @@ function NotifItem({
     const cleanTitle = stripEmoji(notif.title);
 
     return (
-        <div className={`flex gap-4 px-5 py-4 border-l-4 transition-colors ${cfg.accentBorder} ${isRead ? "bg-white" : "bg-gray-50/60"} hover:bg-gray-50/80`}>
+        <div
+            className={`flex gap-4 px-5 py-4 border-l-4 transition-colors ${cfg.accentBorder} ${isRead ? "bg-white" : "bg-gray-50/60 cursor-pointer"} hover:bg-gray-50/80`}
+            onClick={() => !isRead && onMarkRead(notif.id)}
+        >
             <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${cfg.iconBg} ${cfg.iconColor}`}>
                 {cfg.icon}
             </div>
@@ -183,7 +188,7 @@ function NotifItem({
                         <span className="text-[10px] text-gray-300">{formatDate(notif.created_at)}</span>
                         {!isRead && (
                             <button
-                                onClick={() => onMarkRead(notif.id)}
+                                onClick={e => { e.stopPropagation(); onMarkRead(notif.id); }}
                                 className="flex items-center gap-1 text-[11px] text-green-600 hover:text-green-700 transition-colors"
                             >
                                 <CheckCircle2 className="w-3 h-3" />
@@ -267,6 +272,13 @@ export default function NotificationsPage() {
     const { data: notifData, loading, error, refetch } = useNotifications(page, PAGE_SIZE);
     const { mutate: markAsRead } = useMarkNotificationAsRead();
     const { mutate: markAllAsRead, loading: markingAll } = useMarkAllNotificationsAsRead();
+
+    const { newNotificationCount } = useRealtimeNotifications();
+    useEffect(() => {
+        if (newNotificationCount > 0) refetch();
+    }, [newNotificationCount]);
+
+    useTick();
 
     const notifications = notifData?.items ?? [];
     const totalPages = notifData?.total_pages ?? 1;

@@ -39,6 +39,13 @@ async function fetchWithAuth<T>(
 
     const data = await res.json();
 
+    if (res.status === 401) {
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new Event("session-expired"));
+        }
+        throw new Error("SESSION_EXPIRED");
+    }
+
     if (!res.ok) {
         throw new Error(data.message || "API request failed");
     }

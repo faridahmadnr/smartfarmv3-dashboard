@@ -14,6 +14,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { useMyKandang, useNotifications, useSensorData, useTodayDailyLog, useTodayDeathTotal } from "@/hooks/useApi";
 import { useLiveSensorData } from "@/hooks/useLiveSensorData";
+import { useRealtimeNotifications } from "@/components/notification-provider";
+import { useTick } from "@/hooks/useTick";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { DeathReportModal } from "@/components/modals/DeathReportModal";
 import { predictionsApi } from "@/lib/api";
@@ -57,8 +59,10 @@ export default function DashboardPage() {
     const { data: session } = useSession();
     const isPeternak = session?.user?.role === "peternak";
     const { data: kandang, loading: loadingKandang, refetch: refetchKandang } = useMyKandang();
-    const { data: notifData, loading: loadingNotif } = useNotifications();
+    const { data: notifData, loading: loadingNotif, refetch: refetchNotif } = useNotifications();
     const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData();
+    const { newNotificationCount } = useRealtimeNotifications();
+    useTick();
 
     const { data: todayLog } = useTodayDailyLog();
     const { total: todayDeathTotal } = useTodayDeathTotal();
@@ -70,7 +74,9 @@ export default function DashboardPage() {
     const [latestForecast, setLatestForecast] = useState<any>(null);
     const [loadingPred, setLoadingPred] = useState(true);
 
-    const latestSensor = kandang?.latest_sensor;
+    const apiLatestSensor = kandang?.latest_sensor;
+    const [liveLatestSensor, setLiveLatestSensor] = useState<any>(null);
+    const latestSensor = liveLatestSensor ?? apiLatestSensor;
 
     const fetchPredictions = useCallback(async () => {
         if (!session?.accessToken) return;
@@ -86,17 +92,41 @@ export default function DashboardPage() {
         } catch { /* ignore */ }
     }, [session?.accessToken]);
 
-    const onNewData = useCallback(() => {
+    const onNewData = useCallback((reading: any) => {
+        // Update sensor stats immediately from WS without waiting for API
+        setLiveLatestSensor(reading);
+
+        // Update ML predictions directly from auto_prediction in WS message
+        if (reading.auto_prediction?.classification) {
+            setLatestClassify({
+                prediction: reading.auto_prediction.classification.prediction,
+                confidence: reading.auto_prediction.classification.confidence,
+                created_at: reading.timestamp,
+            });
+            setLoadingPred(false);
+        }
+        if (reading.auto_prediction?.forecasting) {
+            setLatestForecast({
+                predicted_death: reading.auto_prediction.forecasting.predicted_death,
+                created_at: reading.timestamp,
+            });
+            setLoadingPred(false);
+        }
+
         refetchSensor();
         refetchKandang();
-        fetchPredictions();
-    }, [refetchSensor, refetchKandang, fetchPredictions]);
-    useLiveSensorData(onNewData);
+    }, [refetchSensor, refetchKandang]);
+
+    const { connected, lastReceived } = useLiveSensorData(onNewData);
 
     useEffect(() => {
         if (status !== "authenticated" || !session?.accessToken) return;
         fetchPredictions().finally(() => setLoadingPred(false));
     }, [status, session?.accessToken, fetchPredictions]);
+
+    useEffect(() => {
+        if (newNotificationCount > 0) refetchNotif();
+    }, [newNotificationCount]);
 
     if (status === "loading") {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>;
@@ -115,7 +145,12 @@ export default function DashboardPage() {
     };
     const kandangStatus = getStatus();
 
-    const lastUpdate = latestSensor?.timestamp
+    const lastUpdate = lastReceived
+        ? (() => {
+            const m = Math.floor((Date.now() - lastReceived.getTime()) / 60000);
+            return m < 1 ? "baru saja" : m < 60 ? `${m} menit lalu` : `${Math.floor(m / 60)} jam lalu`;
+        })()
+        : latestSensor?.timestamp
         ? (() => {
             const m = Math.floor((Date.now() - new Date(latestSensor.timestamp).getTime()) / 60000);
             return m < 60 ? `${m} menit lalu` : `${Math.floor(m / 60)} jam lalu`;
@@ -157,6 +192,10 @@ export default function DashboardPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-50 border border-gray-100">
+                        <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500 animate-pulse" : "bg-gray-300"}`} />
+                        <span className="text-xs text-gray-500">{connected ? "Live" : "Offline"}</span>
+                    </div>
                     {isPeternak && (
                         <>
                             <button
