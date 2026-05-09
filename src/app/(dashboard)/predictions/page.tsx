@@ -14,6 +14,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useModelInfo } from "@/hooks/useApi";
 import { predictionsApi } from "@/lib/api";
+import { useLiveSensorData } from "@/hooks/useLiveSensorData";
+import { useTick } from "@/hooks/useTick";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -197,6 +199,41 @@ export default function PredictionsPage() {
         }
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [status, session?.accessToken, activeTab, historyPage, historyPageSize, sortKey, sortDir]);
+
+    // Update langsung dari WS saat data sensor baru masuk
+    useLiveSensorData(useCallback((reading: any) => {
+        if (reading.auto_prediction?.classification) {
+            setLatestClassify({
+                id: reading.id,
+                type: "classification",
+                prediction: reading.auto_prediction.classification.prediction,
+                confidence: reading.auto_prediction.classification.confidence,
+                predicted_death: null,
+                raw_prediction: null,
+                created_at: reading.timestamp,
+                input_data: { Suhu: reading.suhu, Kelembaban: reading.kelembaban, Amoniak: reading.amoniak, "Hari Ke-": reading.hari_ke },
+            });
+        }
+        if (reading.auto_prediction?.forecasting) {
+            setLatestForecast({
+                id: reading.id,
+                type: "forecasting",
+                prediction: null,
+                confidence: null,
+                predicted_death: reading.auto_prediction.forecasting.predicted_death,
+                raw_prediction: null,
+                created_at: reading.timestamp,
+                input_data: {},
+            });
+        }
+        // Jika sedang di halaman 1 sort terbaru, refresh tabel
+        if (historyPage === 1 && sortKey === "created_at" && sortDir === "desc") {
+            loadHistory();
+        }
+        loadSummary();
+    }, [historyPage, sortKey, sortDir, loadHistory, loadSummary]));
+
+    useTick();
 
     // Fetch latest cards untuk kedua tab saat pertama load
     useEffect(() => {

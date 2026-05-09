@@ -167,7 +167,7 @@ export default function SensorDataPage() {
     const [formData, setFormData] = useState({
         hari_ke: "", tanggal: new Date().toISOString().split("T")[0],
         jam: new Date().toTimeString().slice(0, 5),
-        suhu: "", kelembaban: "", amoniak: "", pakan: "", minum: "", populasi: "", bobot: "",
+        suhu: "", kelembaban: "", amoniak: "",
     });
     const [formError, setFormError] = useState("");
     const [formSuccess, setFormSuccess] = useState("");
@@ -314,16 +314,12 @@ export default function SensorDataPage() {
             suhu: parseFloat(formData.suhu) || 0,
             kelembaban: parseFloat(formData.kelembaban) || 0,
             amoniak: parseFloat(formData.amoniak) || 0,
-            pakan: parseFloat(formData.pakan) || undefined,
-            minum: parseFloat(formData.minum) || undefined,
-            populasi: parseInt(formData.populasi) || undefined,
-            bobot: parseFloat(formData.bobot) || undefined,
         };
         const result = await createSensorData(payload);
         if (result.success) {
             setFormSuccess("Data sensor berhasil disimpan!");
             setShowForm(false);
-            setFormData({ hari_ke: "", tanggal: new Date().toISOString().split("T")[0], jam: new Date().toTimeString().slice(0, 5), suhu: "", kelembaban: "", amoniak: "", pakan: "", minum: "", populasi: "", bobot: "" });
+            setFormData({ hari_ke: "", tanggal: new Date().toISOString().split("T")[0], jam: new Date().toTimeString().slice(0, 5), suhu: "", kelembaban: "", amoniak: "" });
             refetch();
         } else {
             setFormError(result.error || "Gagal menyimpan data");
@@ -524,19 +520,6 @@ export default function SensorDataPage() {
                                     { label: "Suhu (°C)", name: "suhu", step: "0.1", placeholder: "28.5" },
                                     { label: "Kelembaban (%)", name: "kelembaban", step: "0.1", placeholder: "72" },
                                     { label: "Amoniak (ppm)", name: "amoniak", step: "0.001", placeholder: "3.2" },
-                                    { label: "Bobot (g)", name: "bobot", step: "1", placeholder: "58" },
-                                ].map(f => (
-                                    <div key={f.name}>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
-                                        <Input type="number" step={f.step} name={f.name} value={(formData as any)[f.name]} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })} placeholder={f.placeholder} />
-                                    </div>
-                                ))}
-                            </div>
-                            <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                                {[
-                                    { label: "Pakan (kg)", name: "pakan", step: "0.1", placeholder: "150" },
-                                    { label: "Minum (L)", name: "minum", step: "0.1", placeholder: "200" },
-                                    { label: "Populasi", name: "populasi", step: "1", placeholder: "4850" },
                                 ].map(f => (
                                     <div key={f.name}>
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>

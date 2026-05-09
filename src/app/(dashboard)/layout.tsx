@@ -1,6 +1,7 @@
 "use client";
 
-import { useSession } from "next-auth/react";
+import { useEffect, useState } from "react";
+import { useSession, signOut } from "next-auth/react";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Navbar } from "@/components/layout/navbar";
 import { NotificationProvider } from "@/components/notification-provider";
@@ -12,9 +13,25 @@ export default function DashboardLayout({
 }: {
     children: React.ReactNode;
 }) {
-    const { data: session } = useSession();
+    const { data: session, status } = useSession();
     const { theme } = useTheme();
-    const sessionExpired = session?.error === "RefreshAccessTokenError";
+    const [apiExpired, setApiExpired] = useState(false);
+
+    const sessionExpired = session?.error === "RefreshAccessTokenError" || apiExpired;
+
+    // Dengarkan event 401 dari API call mana pun
+    useEffect(() => {
+        const handler = () => setApiExpired(true);
+        window.addEventListener("session-expired", handler);
+        return () => window.removeEventListener("session-expired", handler);
+    }, []);
+
+    // Handle unauthenticated (cookie habis / logout dari tab lain)
+    useEffect(() => {
+        if (status === "unauthenticated") {
+            signOut({ callbackUrl: "/login" });
+        }
+    }, [status]);
 
     const mainBg = theme === "dark" ? "bg-slate-900" : "bg-gray-50";
 

@@ -41,6 +41,13 @@ export function Navbar() {
     const [showDropdown, setShowDropdown] = useState(false);
     const [dropNotifs, setDropNotifs] = useState<any[]>([]);
     const [dropLoading, setDropLoading] = useState(false);
+    const [currentDate, setCurrentDate] = useState("");
+
+    useEffect(() => {
+        setCurrentDate(new Date().toLocaleDateString("id-ID", {
+            weekday: "long", day: "numeric", month: "long", year: "numeric",
+        }));
+    }, []);
     const dropRef = useRef<HTMLDivElement>(null);
 
     const { connected, newNotificationCount, resetNewCount } = useRealtimeNotifications();
@@ -88,6 +95,15 @@ export function Navbar() {
         setShowDropdown(v => !v);
     };
 
+    const handleDropMarkRead = async (id: string) => {
+        if (!session?.accessToken) return;
+        setDropNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
+        setUnreadCount(prev => Math.max(0, prev - 1));
+        try {
+            await notificationsApi.markAsRead(id, session.accessToken);
+        } catch { /* silent */ }
+    };
+
     // Close on click outside
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -112,11 +128,7 @@ export function Navbar() {
                     <h2 className="text-lg font-semibold text-gray-900">
                         Selamat datang, {session?.user?.name?.split(" ")[0] || "User"}! 👋
                     </h2>
-                    <p className="text-sm text-gray-500">
-                        {new Date().toLocaleDateString("id-ID", {
-                            weekday: "long", day: "numeric", month: "long", year: "numeric",
-                        })}
-                    </p>
+                    <p className="text-sm text-gray-500">{currentDate}</p>
                 </div>
 
                 {/* Right: actions */}
@@ -155,7 +167,7 @@ export function Navbar() {
                                 </div>
 
                                 {/* Items */}
-                                <div className="divide-y divide-gray-50 max-h-72 overflow-y-auto">
+                                <div className="divide-y divide-gray-50">
                                     {dropLoading ? (
                                         <div className="py-8 flex justify-center">
                                             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600" />
@@ -170,7 +182,11 @@ export function Navbar() {
                                             const isUnread = !n.is_read;
                                             const icon = TYPE_ICON[n.type] ?? <Bell className="w-3.5 h-3.5 text-blue-400" />;
                                             return (
-                                                <div key={n.id} className={`flex items-start gap-3 px-4 py-3 ${isUnread ? "bg-amber-50/40" : "bg-white"}`}>
+                                                <div
+                                                    key={n.id}
+                                                    onClick={() => isUnread && handleDropMarkRead(n.id)}
+                                                    className={`flex items-start gap-3 px-4 py-3 transition-colors ${isUnread ? "bg-amber-50/40 cursor-pointer hover:bg-amber-50/70" : "bg-white"}`}
+                                                >
                                                     <div className={`flex-shrink-0 w-7 h-7 rounded-lg flex items-center justify-center mt-0.5 ${n.type === "death_forecast" ? "bg-red-50" : n.type === "abnormal_classification" ? "bg-amber-50" : "bg-blue-50"}`}>
                                                         {icon}
                                                     </div>
