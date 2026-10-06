@@ -30,6 +30,16 @@ const navigation = [
         roles: ["admin", "pemilik", "peternak"],
     },
     {
+        name: "Manajemen Kandang",
+        href: "/manajemen-kandang",
+        icon: (
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 21h18M4 21V9l8-5 8 5v12M9 21v-6h6v6M10 9h.01M14 9h.01" />
+            </svg>
+        ),
+        roles: ["admin", "pemilik", "peternak"],
+    },
+    {
         name: "Prediksi Machine Learning",
         href: "/predictions",
         icon: (

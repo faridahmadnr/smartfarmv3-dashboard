@@ -189,16 +189,55 @@ export const kandangApi = {
         return fetchWithAuth(`${API_PREFIX}/kandangs/me`, { token });
     },
 
+    list: async (params?: {
+        page?: number;
+        per_page?: number;
+    }, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (params?.page) searchParams.set("page", params.page.toString());
+        if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
+
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/kandangs${query ? `?${query}` : ""}`, { token });
+    },
+
+    get: async (id: string, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, { token });
+    },
+
+    create: async (kandangData: {
+        nama: string;
+        kode: string;
+        lokasi?: string;
+        kapasitas?: number;
+        deskripsi?: string;
+        pemilik_id?: string;
+    }, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/kandangs`, {
+            method: "POST",
+            body: JSON.stringify(kandangData),
+            token,
+        });
+    },
+
     update: async (id: string, kandangData: {
         nama?: string;
         lokasi?: string;
         kapasitas?: number;
         deskripsi?: string;
         is_active?: boolean;
+        tanggal_mulai_siklus?: string;
     }, token?: string) => {
         return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, {
             method: "PUT",
             body: JSON.stringify(kandangData),
+            token,
+        });
+    },
+
+    delete: async (id: string, token?: string) => {
+        return fetchWithAuth(`${API_PREFIX}/kandangs/${id}`, {
+            method: "DELETE",
             token,
         });
     },
