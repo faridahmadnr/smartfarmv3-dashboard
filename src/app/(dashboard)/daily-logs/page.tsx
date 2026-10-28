@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { BookOpen, RefreshCw, Plus, RotateCcw, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, HeartCrack, Skull, Pencil, Trash2 } from "lucide-react";
+import { BookOpen, RefreshCw, Plus, RotateCcw, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, HeartCrack, Skull, Pencil, Trash2, FileDown } from "lucide-react";
 import { useSession } from "next-auth/react";
 import {
     AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -10,8 +10,10 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { DeathReportModal } from "@/components/modals/DeathReportModal";
+import { ExportPDFModal } from "@/components/modals/ExportPDFModal";
 import { dailyLogsApi, deathReportsApi } from "@/lib/api";
 import { useDeathReports, useTodayDeathTotal } from "@/hooks/useApi";
+import { useKandangStore } from "@/store/useKandangStore";
 
 interface DailyLogItem {
     id: string;
@@ -34,24 +36,46 @@ interface DeathReportItem {
 
 const PER_PAGE = 10;
 
+interface ChartTooltipItem {
+    name?: string;
+    value?: number | string;
+    color?: string;
+}
+
+interface ChartTooltipProps {
+    active?: boolean;
+    payload?: ChartTooltipItem[];
+    label?: string | number;
+}
+
 // ── Tooltip kustom ────────────────────────────────────────────────────────────
-function ChartTooltip({ active, payload, label }: any) {
+function ChartTooltip({ active, payload, label }: ChartTooltipProps) {
     if (!active || !payload?.length) return null;
     return (
         <div className="bg-white border border-gray-100 rounded-xl shadow-lg px-3 py-2 text-xs">
             <p className="font-semibold text-gray-700 mb-1">{label}</p>
-            {payload.map((p: any) => (
+            {payload.map((p) => (
                 <p key={p.name} style={{ color: p.color }} className="leading-5">
-                    {p.name}: <span className="font-semibold">{p.value?.toLocaleString("id-ID")}</span>
+                    {p.name}: <span className="font-semibold">{typeof p.value === "number" ? p.value.toLocaleString("id-ID") : p.value}</span>
                 </p>
             ))}
         </div>
     );
 }
 
+function extractPage<T>(response: unknown): { items: T[]; total: number } {
+    const res = response as { data?: unknown; items?: unknown; total?: unknown } | null;
+    const payload = (res?.data ?? res) as { items?: T[]; total?: number } | null;
+    return { items: payload?.items ?? [], total: payload?.total ?? 0 };
+}
+
 export default function DailyLogsPage() {
     const { data: session, status } = useSession();
     const isPeternak = session?.user?.role === "peternak";
+
+    // ── Kandang terpilih dari switcher navbar ─────────────────────────────────
+    const selectedKandang = useKandangStore((s) => s.selectedKandang);
+    const kandangId = selectedKandang?.id;
 
     // ── Paginated table state ─────────────────────────────────────────────────
     const [items, setItems] = useState<DailyLogItem[]>([]);
@@ -66,13 +90,16 @@ export default function DailyLogsPage() {
     const [chartLogs, setChartLogs] = useState<DailyLogItem[]>([]);
     const [chartDeaths, setChartDeaths] = useState<{ date: string; mati: number }[]>([]);
 
+    // ── PDF export state ──────────────────────────────────────────────────────
+    const [showExport, setShowExport] = useState(false);
+
     // ── Death report state ────────────────────────────────────────────────────
     const [showDeathModal, setShowDeathModal] = useState(false);
     const [editDeath, setEditDeath] = useState<DeathReportItem | null>(null);
     const [deathPage, setDeathPage] = useState(1);
     const DEATH_PER_PAGE = 10;
-    const { data: deathData, loading: deathLoading, refetch: refetchDeaths } = useDeathReports({ page: deathPage, per_page: DEATH_PER_PAGE });
-    const { total: todayDeathTotal, refetch: refetchDeathTotal } = useTodayDeathTotal();
+    const { data: deathData, loading: deathLoading, refetch: refetchDeaths } = useDeathReports({ page: deathPage, per_page: DEATH_PER_PAGE, kandangId });
+    const { total: todayDeathTotal, refetch: refetchDeathTotal } = useTodayDeathTotal(kandangId);
     const deathTotalPages = Math.max(1, Math.ceil((deathData?.total ?? 0) / DEATH_PER_PAGE));
 
     // ── Delete confirm ────────────────────────────────────────────────────────
@@ -88,35 +115,35 @@ export default function DailyLogsPage() {
 
     // ── Load paginated table ──────────────────────────────────────────────────
     const load = useCallback(async () => {
-        if (!session?.accessToken) return;
+        if (!session?.accessToken || !kandangId) return;
         setLoading(true);
         try {
-            const res: any = await dailyLogsApi.list(
-                { page, per_page: PER_PAGE, start_date: appliedStart || undefined, end_date: appliedEnd || undefined },
+            const res = await dailyLogsApi.list(
+                { page, per_page: PER_PAGE, start_date: appliedStart || undefined, end_date: appliedEnd || undefined, kandang_id: kandangId },
                 session.accessToken,
             );
-            const d = res?.data ?? res;
-            setItems(d?.items ?? []);
-            setTotal(d?.total ?? 0);
+            const { items: rows, total: count } = extractPage<DailyLogItem>(res);
+            setItems(rows);
+            setTotal(count);
         } catch {
             setItems([]);
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, page, appliedStart, appliedEnd]);
+    }, [session?.accessToken, kandangId, page, appliedStart, appliedEnd]);
 
     // ── Load chart data (period-filtered, independent from table) ────────────
     const loadChartData = useCallback(async () => {
-        if (!session?.accessToken) return;
+        if (!session?.accessToken || !kandangId) return;
         try {
             const startDate = chartPeriod === "all" ? undefined
                 : new Date(Date.now() - parseInt(chartPeriod) * 86400_000).toISOString().slice(0, 10);
-            const [logRes, deathRes]: any[] = await Promise.all([
-                dailyLogsApi.list({ page: 1, per_page: 100, start_date: startDate }, session.accessToken),
-                deathReportsApi.list({ page: 1, per_page: chartPeriod === "7" ? 50 : 100 }, session.accessToken),
+            const [logRes, deathRes] = await Promise.all([
+                dailyLogsApi.list({ page: 1, per_page: 100, start_date: startDate, kandang_id: kandangId }, session.accessToken),
+                deathReportsApi.list({ page: 1, per_page: chartPeriod === "7" ? 50 : 100, kandang_id: kandangId }, session.accessToken),
             ]);
-            const logs: DailyLogItem[] = (logRes?.data ?? logRes)?.items ?? [];
-            const deaths: DeathReportItem[] = (deathRes?.data ?? deathRes)?.items ?? [];
+            const logs = extractPage<DailyLogItem>(logRes).items;
+            const deaths = extractPage<DeathReportItem>(deathRes).items;
 
             // Sort ascending for chart
             setChartLogs([...logs].sort((a, b) => a.date.localeCompare(b.date)));
@@ -133,15 +160,27 @@ export default function DailyLogsPage() {
                     .map(([date, mati]) => ({ date, mati }))
             );
         } catch { /* silent */ }
-    }, [session?.accessToken]);
+    }, [session?.accessToken, kandangId, chartPeriod]);
+
+    // ── Reset page & data saat kandang berubah ────────────────────────────────
+    useEffect(() => {
+        setPage(1);
+        setDeathPage(1);
+        setItems([]);
+        setChartLogs([]);
+        setChartDeaths([]);
+    }, [kandangId]);
 
     useEffect(() => {
-        if (status === "authenticated") load();
-    }, [status, load]);
+        if (status === "authenticated" && kandangId) load();
+        else if (!kandangId) { setItems([]); setLoading(false); }
+    }, [status, load, kandangId]);
 
     useEffect(() => {
-        if (status === "authenticated") loadChartData();
-    }, [status, loadChartData, chartPeriod]);
+        if (status === "authenticated" && kandangId) loadChartData();
+        else if (!kandangId) { setChartLogs([]); setChartDeaths([]); }
+    }, [status, loadChartData, chartPeriod, kandangId]);
+
 
     // ── Chart data merge ──────────────────────────────────────────────────────
     const chartData = useMemo(() => {
@@ -200,6 +239,13 @@ export default function DailyLogsPage() {
                     <p className="text-sm text-gray-400 mt-0.5">Log harian & laporan kematian ayam</p>
                 </div>
                 <div className="flex items-center gap-2">
+                    {kandangId && (
+                        <button onClick={() => setShowExport(true)}
+                            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                            <FileDown className="w-3.5 h-3.5" />
+                            Ekspor Laporan PDF
+                        </button>
+                    )}
                     <button onClick={() => { load(); refetchDeaths(); refetchDeathTotal(); loadChartData(); }} disabled={loading}
                         className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
                         <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
@@ -567,6 +613,13 @@ export default function DailyLogsPage() {
                 onClose={() => { setShowDeathModal(false); setEditDeath(null); }}
                 onSuccess={handleDeathSuccess}
                 editItem={editDeath}
+            />
+            <ExportPDFModal
+                open={showExport}
+                onClose={() => setShowExport(false)}
+                kandangId={kandangId}
+                kandangName={selectedKandang?.name ?? "Kandang"}
+                kandangType={selectedKandang?.type ?? "Broiler"}
             />
         </div>
     );

@@ -26,7 +26,7 @@ export function KandangCard({ kandang, onEdit, onDelete }: KandangCardProps) {
             {/* Name & ID */}
             <div className="mb-4">
                 <h3 className="text-lg font-bold text-slate-800 leading-tight">{kandang.name}</h3>
-                <p className="text-xs text-slate-400 mt-0.5">ID: {kandang.id}</p>
+                <p className="text-xs text-slate-400 mt-0.5">ID: {kandang.code}</p>
             </div>
 
             {/* Kapasitas */}

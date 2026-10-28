@@ -297,7 +297,7 @@ export function useUser(id: string) {
 }
 
 // Sensor Data hooks
-export function useSensorData(params?: { page?: number; page_size?: number; start_date?: string; end_date?: string }) {
+export function useSensorData(params?: { page?: number; page_size?: number; start_date?: string; end_date?: string; kandang_id?: string }) {
     const { data: session, status } = useSession();
     const [data, setData] = useState<{ items: SensorData[]; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
@@ -308,12 +308,12 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
     const hasData = useRef(false);
 
     useEffect(() => {
-        const key = `${params?.page}|${params?.page_size}|${params?.start_date}|${params?.end_date}`;
+        const key = `${params?.page}|${params?.page_size}|${params?.start_date}|${params?.end_date}|${params?.kandang_id}`;
         if (prevKey.current !== key) {
             prevKey.current = key;
             hasFetched.current = false;
         }
-    }, [params?.page, params?.page_size, params?.start_date, params?.end_date]);
+    }, [params?.page, params?.page_size, params?.start_date, params?.end_date, params?.kandang_id]);
 
     const refetch = useCallback(async () => {
         if (status === "loading") return;
@@ -357,7 +357,7 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
             setLoading(false);
             setIsFetching(false);
         }
-    }, [session?.accessToken, status, params?.page, params?.page_size, params?.start_date, params?.end_date]);
+    }, [session?.accessToken, status, params?.page, params?.page_size, params?.start_date, params?.end_date, params?.kandang_id]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -373,7 +373,7 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
 }
 
 // Notifications hooks
-export function useNotifications(page: number = 1, limit: number = 20) {
+export function useNotifications(page: number = 1, limit: number = 20, kandangId?: string) {
     const { data: session, status } = useSession();
     const [data, setData] = useState<{
         items: Notification[];
@@ -397,7 +397,7 @@ export function useNotifications(page: number = 1, limit: number = 20) {
         setError(null);
 
         try {
-            const response: any = await notificationsApi.list({ page, limit }, session.accessToken);
+            const response: any = await notificationsApi.list({ page, limit, kandang_id: kandangId }, session.accessToken);
             if (response && typeof response === "object") {
                 const parseItems = (respData: any) => {
                     if ("items" in respData && Array.isArray(respData.items)) {
@@ -436,7 +436,7 @@ export function useNotifications(page: number = 1, limit: number = 20) {
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, status, page, limit]);
+    }, [session?.accessToken, status, page, limit, kandangId]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -445,7 +445,7 @@ export function useNotifications(page: number = 1, limit: number = 20) {
         } else if (status === "unauthenticated") {
             setLoading(false);
         }
-    }, [status, session?.accessToken, page, refetch]);
+    }, [status, session?.accessToken, page, kandangId, refetch]);
 
     return { data, loading, error, refetch };
 }
@@ -1081,7 +1081,7 @@ export interface DeathReportItem {
     created_at: string;
 }
 
-export function useDeathReports(params?: { page?: number; per_page?: number }) {
+export function useDeathReports(params?: { page?: number; per_page?: number; kandangId?: string }) {
     const { data: session, status } = useSession();
     const [data, setData] = useState<{ items: DeathReportItem[]; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
@@ -1091,7 +1091,10 @@ export function useDeathReports(params?: { page?: number; per_page?: number }) {
         if (!session?.accessToken) { setLoading(false); return; }
         setLoading(true);
         try {
-            const res: any = await deathReportsApi.list({ per_page: params?.per_page ?? 10, page: params?.page ?? 1 }, session.accessToken);
+            const res: any = await deathReportsApi.list(
+                { per_page: params?.per_page ?? 10, page: params?.page ?? 1, kandang_id: params?.kandangId },
+                session.accessToken,
+            );
             const d = res?.data ?? res;
             setData({ items: d?.items ?? [], total: d?.total ?? 0 });
         } catch (err) {
@@ -1099,7 +1102,7 @@ export function useDeathReports(params?: { page?: number; per_page?: number }) {
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, params?.page, params?.per_page]);
+    }, [session?.accessToken, params?.page, params?.per_page, params?.kandangId]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -1110,7 +1113,7 @@ export function useDeathReports(params?: { page?: number; per_page?: number }) {
     return { data, loading, error, refetch };
 }
 
-export function useTodayDeathTotal() {
+export function useTodayDeathTotal(kandangId?: string) {
     const { data: session, status } = useSession();
     const [total, setTotal] = useState<number>(0);
     const [loading, setLoading] = useState(true);
@@ -1119,7 +1122,7 @@ export function useTodayDeathTotal() {
         if (!session?.accessToken) { setLoading(false); return; }
         setLoading(true);
         try {
-            const res: any = await deathReportsApi.getTodayTotal(session.accessToken);
+            const res: any = await deathReportsApi.getTodayTotal(kandangId, session.accessToken);
             const d = res?.data ?? res;
             setTotal(typeof d?.total === "number" ? d.total : (typeof d === "number" ? d : 0));
         } catch {
@@ -1127,7 +1130,7 @@ export function useTodayDeathTotal() {
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken]);
+    }, [session?.accessToken, kandangId]);
 
     useEffect(() => {
         if (status === "loading") return;

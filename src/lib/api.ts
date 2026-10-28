@@ -250,12 +250,14 @@ export const sensorDataApi = {
         page_size?: number;
         start_date?: string;
         end_date?: string;
+        kandang_id?: string;
     }, token?: string) => {
         const searchParams = new URLSearchParams();
         if (params?.page) searchParams.set("page", params.page.toString());
         if (params?.page_size) searchParams.set("page_size", params.page_size.toString());
         if (params?.start_date) searchParams.set("start_time", params.start_date);
         if (params?.end_date) searchParams.set("end_time", params.end_date);
+        if (params?.kandang_id) searchParams.set("kandang_id", params.kandang_id);
 
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/sensor-data${query ? `?${query}` : ""}`, { token });
@@ -362,11 +364,13 @@ export const notificationsApi = {
         unread_only?: boolean;
         limit?: number;
         page?: number;
+        kandang_id?: string;
     }, token?: string) => {
         const searchParams = new URLSearchParams();
         if (params?.unread_only) searchParams.set("unread_only", "true");
         if (params?.limit) searchParams.set("limit", params.limit.toString());
         if (params?.page) searchParams.set("page", params.page.toString());
+        if (params?.kandang_id) searchParams.set("kandang_id", params.kandang_id);
 
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/notifications${query ? `?${query}` : ""}`, { token });
@@ -432,24 +436,32 @@ export const activityLogsApi = {
 
 // Death Reports API
 export const deathReportsApi = {
-    report: async (data: { count: number; notes?: string; timestamp?: string }, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/death-reports`, {
+    report: async (data: { count: number; notes?: string; timestamp?: string; kandang_id?: string }, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (data.kandang_id) searchParams.set("kandang_id", data.kandang_id);
+        const query = searchParams.toString();
+        const { kandang_id: _k, ...body } = data;
+        return fetchWithAuth(`${API_PREFIX}/death-reports${query ? `?${query}` : ""}`, {
             method: "POST",
-            body: JSON.stringify(data),
+            body: JSON.stringify(body),
             token,
         });
     },
 
-    list: async (params?: { page?: number; per_page?: number }, token?: string) => {
+    list: async (params?: { page?: number; per_page?: number; kandang_id?: string }, token?: string) => {
         const searchParams = new URLSearchParams();
         if (params?.page) searchParams.set("page", params.page.toString());
         if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
+        if (params?.kandang_id) searchParams.set("kandang_id", params.kandang_id);
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/death-reports${query ? `?${query}` : ""}`, { token });
     },
 
-    getTodayTotal: async (token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/death-reports/today-total`, { token });
+    getTodayTotal: async (kandang_id?: string, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (kandang_id) searchParams.set("kandang_id", kandang_id);
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/death-reports/today-total${query ? `?${query}` : ""}`, { token });
     },
 
     update: async (id: string, data: { count?: number; notes?: string; timestamp?: string }, token?: string) => {
@@ -477,24 +489,33 @@ export const dailyLogsApi = {
         populasi?: number;
         bobot?: number;
         notes?: string;
+        kandang_id?: string;
     }, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/daily-logs`, {
+        const searchParams = new URLSearchParams();
+        if (data.kandang_id) searchParams.set("kandang_id", data.kandang_id);
+        const query = searchParams.toString();
+        const { kandang_id: _k, ...body } = data;
+        return fetchWithAuth(`${API_PREFIX}/daily-logs${query ? `?${query}` : ""}`, {
             method: "POST",
-            body: JSON.stringify(data),
+            body: JSON.stringify(body),
             token,
         });
     },
 
-    getToday: async (token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/daily-logs/today`, { token });
+    getToday: async (kandang_id?: string, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (kandang_id) searchParams.set("kandang_id", kandang_id);
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/daily-logs/today${query ? `?${query}` : ""}`, { token });
     },
 
-    list: async (params?: { page?: number; per_page?: number; start_date?: string; end_date?: string }, token?: string) => {
+    list: async (params?: { page?: number; per_page?: number; start_date?: string; end_date?: string; kandang_id?: string }, token?: string) => {
         const searchParams = new URLSearchParams();
         if (params?.page) searchParams.set("page", params.page.toString());
         if (params?.per_page) searchParams.set("per_page", params.per_page.toString());
         if (params?.start_date) searchParams.set("start_date", params.start_date);
         if (params?.end_date) searchParams.set("end_date", params.end_date);
+        if (params?.kandang_id) searchParams.set("kandang_id", params.kandang_id);
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/daily-logs${query ? `?${query}` : ""}`, { token });
     },

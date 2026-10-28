@@ -17,8 +17,9 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSensorData, useMyKandang, useCreateSensorData } from "@/hooks/useApi";
+import { useSensorData, useCreateSensorData } from "@/hooks/useApi";
 import { useLiveSensorData } from "@/hooks/useLiveSensorData";
+import { useKandangStore } from "@/store/useKandangStore";
 
 // ─── Stat Card (same pattern as dashboard) ────────────────────────────────────
 
@@ -70,7 +71,11 @@ function get6hRange() {
 
 export default function SensorDataPage() {
     const { data: session, status } = useSession();
-    const { data: kandang, loading: loadingKandang } = useMyKandang();
+
+    // ── Kandang terpilih dari switcher navbar ─────────────────────────────────
+    const selectedKandang = useKandangStore((s) => s.selectedKandang);
+    const kandangLoading = useKandangStore((s) => s.isLoading);
+    const kandangId = selectedKandang?.id;
 
     // ── TABLE filter state (collapsible panel, independent of chart) ─────────
     const [currentPage, setCurrentPage] = useState(1);
@@ -135,6 +140,7 @@ export default function SensorDataPage() {
         page_size: pageSize,
         start_date: appliedStart || undefined,
         end_date: appliedEnd || undefined,
+        kandang_id: kandangId,
     });
 
     // Chart data (large fetch, uses chart-specific filter)
@@ -143,6 +149,7 @@ export default function SensorDataPage() {
         page_size: 500,
         start_date: chartAppliedStart || undefined,
         end_date: chartAppliedEnd || undefined,
+        kandang_id: kandangId,
     });
 
     const { mutate: createSensorData, loading: creating } = useCreateSensorData();
@@ -244,6 +251,11 @@ export default function SensorDataPage() {
     // Auto-expand chart range when IoT is offline and no data in the current narrow window.
     // Only triggers once per mount — respects manual preset changes after that.
     const hasAutoExpanded = useRef(false);
+    // Reset pagination & status auto-expand setiap kali kandang berganti
+    useEffect(() => {
+        setCurrentPage(1);
+        hasAutoExpanded.current = false;
+    }, [kandangId]);
     useEffect(() => {
         if (chartLoading) return;
         if (chartData.length === 0 && (chartPreset === "6h" || chartPreset === "today") && !hasAutoExpanded.current) {
@@ -344,7 +356,7 @@ export default function SensorDataPage() {
     );
 
     // ── Loading / Empty guards ─────────────────────────────────────────────────
-    if (status === "loading" || loadingKandang) {
+    if (status === "loading" || kandangLoading) {
         return (
             <div className="flex justify-center py-12">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
@@ -352,7 +364,7 @@ export default function SensorDataPage() {
         );
     }
 
-    if (!kandang) {
+    if (!selectedKandang) {
         return (
             <div className="flex justify-center py-12">
                 <Card>
@@ -372,7 +384,7 @@ export default function SensorDataPage() {
                 <div>
                     <h1 className="text-2xl font-bold text-gray-900">Data Sensor</h1>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                        <p className="text-sm text-gray-400">{kandang.nama}</p>
+                        <p className="text-sm text-gray-400">{selectedKandang.name}</p>
                         <span className="text-gray-300">·</span>
                         <span className={`flex items-center gap-1.5 text-xs ${connected ? "text-green-600" : "text-gray-400"}`}>
                             <span className="relative flex h-2 w-2">

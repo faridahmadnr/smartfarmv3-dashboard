@@ -8,6 +8,7 @@ import { notificationsApi } from "@/lib/api";
 import { useRealtimeNotifications } from "@/components/notification-provider";
 import { useTheme } from "@/components/providers/theme-provider";
 import { KandangSwitcher } from "@/components/KandangSwitcher";
+import { useKandangStore } from "@/store/useKandangStore";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -43,6 +44,12 @@ export function Navbar() {
   const [dropNotifs, setDropNotifs] = useState<any[]>([]);
   const [dropLoading, setDropLoading] = useState(false);
   const [currentDate, setCurrentDate] = useState("");
+
+  // ── Fetch daftar kandang saat Navbar pertama mount ───────────────────────
+  const fetchKandangList = useKandangStore((s) => s.fetchKandangList);
+  useEffect(() => {
+    fetchKandangList();
+  }, [fetchKandangList]);
 
   useEffect(() => {
     const now = new Date();

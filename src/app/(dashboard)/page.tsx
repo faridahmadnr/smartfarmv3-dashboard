@@ -19,6 +19,7 @@ import { useTick } from "@/hooks/useTick";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { DeathReportModal } from "@/components/modals/DeathReportModal";
 import { predictionsApi } from "@/lib/api";
+import { useKandangStore } from "@/store/useKandangStore";
 
 interface StatCardProps {
     label: string; value: string; unit?: string;
@@ -59,8 +60,14 @@ export default function DashboardPage() {
     const { data: session } = useSession();
     const isPeternak = session?.user?.role === "peternak";
     const { data: kandang, loading: loadingKandang, refetch: refetchKandang } = useMyKandang();
+
+    // ── Kandang terpilih dari switcher navbar ─────────────────────────────────
+    const selectedKandang = useKandangStore((s) => s.selectedKandang);
+    const kandangLoading = useKandangStore((s) => s.isLoading);
+    const kandangId = selectedKandang?.id;
+
     const { data: notifData, loading: loadingNotif, refetch: refetchNotif } = useNotifications();
-    const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData();
+    const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData({ kandang_id: kandangId });
     const { newNotificationCount } = useRealtimeNotifications();
     useTick();
 
@@ -128,8 +135,20 @@ export default function DashboardPage() {
         if (newNotificationCount > 0) refetchNotif();
     }, [newNotificationCount]);
 
-    if (status === "loading") {
+    if (status === "loading" || kandangLoading) {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>;
+    }
+
+    if (!selectedKandang) {
+        return (
+            <div className="flex justify-center py-12">
+                <Card>
+                    <CardContent className="py-12 text-center">
+                        <p className="text-gray-500">Belum ada kandang. Hubungi admin untuk setup kandang.</p>
+                    </CardContent>
+                </Card>
+            </div>
+        );
     }
 
     const notifications = notifData?.items || [];
@@ -177,7 +196,7 @@ export default function DashboardPage() {
                     <h1 className="text-2xl font-bold text-gray-900">Dashboard Monitoring</h1>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                         <p className="text-sm text-gray-400">
-                            {kandang ? `${kandang.nama} — ${kandang.lokasi || "Kandang Utama"}` : "Memuat data kandang..."}
+                            {selectedKandang.name}{kandang?.lokasi ? ` — ${kandang.lokasi}` : ""}
                         </p>
                         {hariKe && (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">

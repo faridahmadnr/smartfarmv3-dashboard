@@ -14,6 +14,7 @@ import {
     useNotifications, useMarkNotificationAsRead,
     useMarkAllNotificationsAsRead, Notification,
 } from "@/hooks/useApi";
+import { useKandangStore } from "@/store/useKandangStore";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -265,11 +266,22 @@ const PAGE_SIZE = 20;
 
 export default function NotificationsPage() {
     const { status } = useSession();
+
+    // ── Kandang terpilih dari switcher navbar ─────────────────────────────────
+    const selectedKandang = useKandangStore((s) => s.selectedKandang);
+    const kandangId = selectedKandang?.id;
+
     const [page, setPage] = useState(1);
     const [filter, setFilter] = useState<"all" | "unread">("all");
     const [localReadIds, setLocalReadIds] = useState<Set<string>>(new Set());
 
-    const { data: notifData, loading, error, refetch } = useNotifications(page, PAGE_SIZE);
+    const { data: notifData, loading, error, refetch } = useNotifications(page, PAGE_SIZE, kandangId);
+
+    // Reset ke halaman 1 saat kandang berubah
+    useEffect(() => {
+        setPage(1);
+        setLocalReadIds(new Set());
+    }, [kandangId]);
     const { mutate: markAsRead } = useMarkNotificationAsRead();
     const { mutate: markAllAsRead, loading: markingAll } = useMarkAllNotificationsAsRead();
 
@@ -315,6 +327,15 @@ export default function NotificationsPage() {
         setPage(p);
         window.scrollTo({ top: 0, behavior: "smooth" });
     };
+
+    // Jangan fetch jika kandang belum dipilih
+    if (!kandangId) {
+        return (
+            <div className="flex justify-center py-16">
+                <p className="text-sm text-gray-400">Silakan pilih kandang terlebih dahulu.</p>
+            </div>
+        );
+    }
 
     if (status === "loading" || (loading && !notifData)) {
         return (
