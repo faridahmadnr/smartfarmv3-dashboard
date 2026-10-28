@@ -7,8 +7,11 @@ import { KandangCard } from "@/components/KandangCard";
 import { KandangFormModal } from "@/components/modals/KandangFormModal";
 import { DeleteKandangModal } from "@/components/modals/DeleteKandangModal";
 import { Toast, useToast } from "@/components/ui/toast";
+import { RequireAdmin } from "@/components/auth/require-admin";
+import { useRole } from "@/hooks/useRole";
 
-export default function ManajemenKandangPage() {
+function ManajemenKandangContent() {
+    const { isAdmin } = useRole();
     const {
         kandangList,
         isLoading,
@@ -33,13 +36,15 @@ export default function ManajemenKandangPage() {
                         Kelola data kandang, kapasitas, dan status operasional
                     </p>
                 </div>
-                <button
-                    onClick={() => openFormModal(null)}
-                    className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
-                >
-                    <Plus className="w-4 h-4" />
-                    Tambah Kandang
-                </button>
+                {isAdmin && (
+                    <button
+                        onClick={() => openFormModal(null)}
+                        className="flex items-center gap-1.5 px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                    >
+                        <Plus className="w-4 h-4" />
+                        Tambah Kandang
+                    </button>
+                )}
             </div>
 
             {/* ── Loading state ───────────────────────────────────────────── */}
@@ -72,13 +77,15 @@ export default function ManajemenKandangPage() {
                     <p className="text-sm text-gray-400 mb-4">
                         Mulai dengan menambahkan kandang baru
                     </p>
-                    <button
-                        onClick={() => openFormModal(null)}
-                        className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
-                    >
-                        <Plus className="w-4 h-4" />
-                        Tambah Kandang
-                    </button>
+                    {isAdmin && (
+                        <button
+                            onClick={() => openFormModal(null)}
+                            className="inline-flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-colors"
+                        >
+                            <Plus className="w-4 h-4" />
+                            Tambah Kandang
+                        </button>
+                    )}
                 </div>
             )}
 
@@ -89,6 +96,7 @@ export default function ManajemenKandangPage() {
                         <KandangCard
                             key={kandang.id}
                             kandang={kandang}
+                            canManage={isAdmin}
                             onEdit={(k) => openFormModal(k)}
                             onDelete={(k) => openDeleteModal(k)}
                         />
@@ -97,10 +105,22 @@ export default function ManajemenKandangPage() {
             )}
 
             {/* ── Modals ──────────────────────────────────────────────────── */}
-            <KandangFormModal onNotify={showToast} />
-            <DeleteKandangModal onNotify={showToast} />
+            {isAdmin && (
+                <>
+                    <KandangFormModal onNotify={showToast} />
+                    <DeleteKandangModal onNotify={showToast} />
+                </>
+            )}
 
             {toast && <Toast message={toast.message} type={toast.type} onClose={hideToast} />}
         </div>
+    );
+}
+
+export default function ManajemenKandangPage() {
+    return (
+        <RequireAdmin>
+            <ManajemenKandangContent />
+        </RequireAdmin>
     );
 }

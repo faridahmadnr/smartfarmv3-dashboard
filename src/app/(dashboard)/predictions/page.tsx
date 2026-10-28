@@ -14,10 +14,28 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useModelInfo } from "@/hooks/useApi";
 import { predictionsApi } from "@/lib/api";
-import { useLiveSensorData } from "@/hooks/useLiveSensorData";
+import { useLiveSensorData, type LiveSensorReading } from "@/hooks/useLiveSensorData";
 import { useTick } from "@/hooks/useTick";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
+
+interface SensorHistoryPoint {
+    temp?: number;
+    hum?: number;
+    ammo?: number;
+}
+
+interface PredictionInputData {
+    sensor_history?: SensorHistoryPoint[];
+    input_count?: number;
+    suhu?: number;
+    kelembaban?: number;
+    amoniak?: number;
+    Suhu?: number;
+    Kelembaban?: number;
+    Amoniak?: number;
+    [key: string]: unknown;
+}
 
 interface PredictionRecord {
     id: string;
@@ -26,8 +44,15 @@ interface PredictionRecord {
     confidence: number | null;
     predicted_death: number | null;
     raw_prediction: number | null;
-    input_data: Record<string, any> | null;
+    input_data: PredictionInputData | null;
     created_at: string;
+}
+
+function unwrapData(response: unknown): unknown {
+    const root = response as { data?: unknown } | null;
+    const data = root?.data;
+    const nested = (data as { data?: unknown } | null | undefined)?.data;
+    return nested ?? data ?? response;
 }
 
 interface PredictionSummary {
@@ -140,12 +165,12 @@ export default function PredictionsPage() {
     const loadSummary = useCallback(async (start?: string, end?: string) => {
         if (!session?.accessToken) return;
         try {
-            const params: any = {};
+            const params: { start_date?: string; end_date?: string } = {};
             if (start) params.start_date = start;
             if (end) params.end_date = end;
-            const res: any = await predictionsApi.getSummary(params, session.accessToken);
-            const d = res?.data?.data ?? res?.data ?? res;
-            if (d?.classification) setSummary(d);
+            const res = await predictionsApi.getSummary(params, session.accessToken);
+            const d = unwrapData(res) as Partial<PredictionSummary> | null;
+            if (d?.classification) setSummary(d as PredictionSummary);
         } catch { /* silent */ }
     }, [session?.accessToken]);
 
@@ -159,7 +184,7 @@ export default function PredictionsPage() {
         if (!session?.accessToken) return;
         setLoadingHistory(true);
         try {
-            const params: any = {
+            const params: NonNullable<Parameters<typeof predictionsApi.getHistory>[0]> = {
                 type: opts?.type ?? activeTab,
                 page: opts?.page ?? historyPage,
                 page_size: opts?.pageSize ?? historyPageSize,
@@ -169,10 +194,13 @@ export default function PredictionsPage() {
             if (opts?.start ?? appliedStart) params.start_date = opts?.start ?? appliedStart;
             if (opts?.end ?? appliedEnd) params.end_date = opts?.end ?? appliedEnd;
 
-            const res: any = await predictionsApi.getHistory(params, session.accessToken);
-            const d = res?.data?.data ?? res?.data ?? res;
-            const items: PredictionRecord[] = Array.isArray(d?.items) ? d.items : Array.isArray(d) ? d : [];
-            const total: number = d?.total ?? items.length;
+            const res = await predictionsApi.getHistory(params, session.accessToken);
+            const d = unwrapData(res);
+            const record = d && typeof d === "object" ? d as { items?: unknown; total?: unknown } : null;
+            const items: PredictionRecord[] = Array.isArray(record?.items)
+                ? record.items as PredictionRecord[]
+                : Array.isArray(d) ? d as PredictionRecord[] : [];
+            const total: number = typeof record?.total === "number" ? record.total : items.length;
 
             setPagedRecords(items);
             setTotalRecords(total);
@@ -201,7 +229,7 @@ export default function PredictionsPage() {
     }, [status, session?.accessToken, activeTab, historyPage, historyPageSize, sortKey, sortDir]);
 
     // Update langsung dari WS saat data sensor baru masuk
-    useLiveSensorData(useCallback((reading: any) => {
+    useLiveSensorData(useCallback((reading: LiveSensorReading) => {
         if (reading.auto_prediction?.classification) {
             setLatestClassify({
                 id: reading.id,
@@ -240,15 +268,15 @@ export default function PredictionsPage() {
         if (status !== "authenticated" || !session?.accessToken) return;
         const token = session.accessToken;
         predictionsApi.getHistory({ type: "classification", page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc" }, token)
-            .then((res: any) => {
-                const d = res?.data?.data ?? res?.data ?? res;
-                const items = Array.isArray(d?.items) ? d.items : [];
+            .then((res) => {
+                const d = unwrapData(res) as { items?: unknown } | null;
+                const items = Array.isArray(d?.items) ? d.items as PredictionRecord[] : [];
                 if (items[0]) setLatestClassify(items[0]);
             }).catch(() => {});
         predictionsApi.getHistory({ type: "forecasting", page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc" }, token)
-            .then((res: any) => {
-                const d = res?.data?.data ?? res?.data ?? res;
-                const items = Array.isArray(d?.items) ? d.items : [];
+            .then((res) => {
+                const d = unwrapData(res) as { items?: unknown } | null;
+                const items = Array.isArray(d?.items) ? d.items as PredictionRecord[] : [];
                 if (items[0]) setLatestForecast(items[0]);
             }).catch(() => {});
     }, [status, session?.accessToken]);
@@ -275,8 +303,8 @@ export default function PredictionsPage() {
 
     const totalPages = Math.max(1, Math.ceil(totalRecords / historyPageSize));
 
-    const classModel    = (modelInfo as any)?.data?.classification_model ?? (modelInfo as any)?.classification_model;
-    const forecastModel = (modelInfo as any)?.data?.forecasting_model    ?? (modelInfo as any)?.forecasting_model;
+    const classModel = modelInfo?.classification_model;
+    const forecastModel = modelInfo?.forecasting_model;
 
     if (status === "loading") {
         return (
@@ -439,7 +467,7 @@ export default function PredictionsPage() {
                                     </div>
                                 </div>
                                 {(() => {
-                                    const history: any[] = latestForecast.input_data?.sensor_history ?? [];
+                                    const history: SensorHistoryPoint[] = latestForecast.input_data?.sensor_history ?? [];
                                     const last = history[history.length - 1];
                                     if (!last) return null;
                                     return (
@@ -643,7 +671,7 @@ export default function PredictionsPage() {
                                     <tbody className="divide-y divide-gray-50">
                                         {pagedRecords.map((r) => {
                                             const hasRisk = (r.predicted_death ?? 0) > 0;
-                                            const history: any[] = r.input_data?.sensor_history ?? [];
+                                            const history: SensorHistoryPoint[] = r.input_data?.sensor_history ?? [];
                                             return (
                                                 <tr key={r.id} className="hover:bg-gray-50/60 transition-colors">
                                                     <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{formatTime(r.created_at)}</td>
@@ -694,7 +722,7 @@ export default function PredictionsPage() {
                                                     <td className="py-3 px-4">
                                                         {history.length > 0 ? (
                                                             <div className="flex flex-wrap gap-1">
-                                                                {history.map((pt: any, i: number) => (
+                                                                {history.map((pt, i) => (
                                                                     <span key={i} className="text-[10px] bg-gray-50 border border-gray-100 rounded px-1.5 py-0.5 text-gray-500 whitespace-nowrap">
                                                                         T{i + 1}: {pt.temp}°C {pt.hum}% {Number(pt.ammo).toFixed(2)}ppm
                                                                     </span>

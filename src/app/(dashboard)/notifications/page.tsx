@@ -35,9 +35,9 @@ function formatDate(ts: string) {
     });
 }
 
-function parseData(raw?: string | null): Record<string, any> {
+function parseData(raw?: string | null): Record<string, unknown> {
     if (!raw) return {};
-    try { return JSON.parse(raw); } catch { return {}; }
+    try { return JSON.parse(raw) as Record<string, unknown>; } catch { return {}; }
 }
 
 function stripEmoji(str: string) {
@@ -90,7 +90,7 @@ const DEFAULT_CONFIG = TYPE_CONFIG.system;
 
 // ─── Detail chips ─────────────────────────────────────────────────────────────
 
-function ClassificationDetail({ data }: { data: Record<string, any> }) {
+function ClassificationDetail({ data }: { data: Record<string, unknown> }) {
     const suhu = data.Suhu ?? data.suhu;
     const hum = data.Kelembaban ?? data.kelembaban;
     const ammo = data.Amoniak ?? data.amoniak;
@@ -116,9 +116,9 @@ function ClassificationDetail({ data }: { data: Record<string, any> }) {
     );
 }
 
-function ForecastDetail({ data }: { data: Record<string, any> }) {
+function ForecastDetail({ data }: { data: Record<string, unknown> }) {
     const death = data.predicted_death;
-    if (death === undefined) return null;
+    if (typeof death !== "number" && typeof death !== "string") return null;
 
     return (
         <div className="flex flex-wrap gap-1.5 mt-2.5">
@@ -279,8 +279,11 @@ export default function NotificationsPage() {
 
     // Reset ke halaman 1 saat kandang berubah
     useEffect(() => {
-        setPage(1);
-        setLocalReadIds(new Set());
+        const id = setTimeout(() => {
+            setPage(1);
+            setLocalReadIds(new Set());
+        }, 0);
+        return () => clearTimeout(id);
     }, [kandangId]);
     const { mutate: markAsRead } = useMarkNotificationAsRead();
     const { mutate: markAllAsRead, loading: markingAll } = useMarkAllNotificationsAsRead();
@@ -288,7 +291,7 @@ export default function NotificationsPage() {
     const { newNotificationCount } = useRealtimeNotifications();
     useEffect(() => {
         if (newNotificationCount > 0) refetch();
-    }, [newNotificationCount]);
+    }, [newNotificationCount, refetch]);
 
     useTick();
 
@@ -297,9 +300,7 @@ export default function NotificationsPage() {
     const total = notifData?.total ?? 0;
     const serverUnread = notifData?.unread_count ?? 0;
 
-    const [localUnreadDelta, setLocalUnreadDelta] = useState(0);
-    useEffect(() => { setLocalUnreadDelta(0); }, [notifData]);
-    const effectiveUnread = Math.max(0, serverUnread - localUnreadDelta);
+    const effectiveUnread = Math.max(0, serverUnread - localReadIds.size);
 
     const filtered = filter === "unread"
         ? notifications.filter(n => !n.is_read && !localReadIds.has(n.id))
@@ -310,7 +311,6 @@ export default function NotificationsPage() {
 
     const handleMarkAsRead = async (id: string) => {
         setLocalReadIds(prev => new Set([...prev, id]));
-        setLocalUnreadDelta(prev => prev + 1);
         await markAsRead(id);
     };
 

@@ -20,9 +20,10 @@ interface Props {
     onClose: () => void;
     onSuccess?: () => void;
     editItem?: DailyLogItem | null;
+    kandangId?: string;
 }
 
-export function DailyLogModal({ open, onClose, onSuccess, editItem }: Props) {
+export function DailyLogModal({ open, onClose, onSuccess, editItem, kandangId }: Props) {
     const { data: session } = useSession();
     const isEdit = !!editItem;
 
@@ -40,14 +41,14 @@ export function DailyLogModal({ open, onClose, onSuccess, editItem }: Props) {
 
     useEffect(() => {
         if (editItem) {
-            setDate(editItem.date?.slice(0, 10) ?? todayStr);
+            setDate(editItem.date?.slice(0, 10) ?? new Date().toISOString().slice(0, 10));
             setPakan(editItem.pakan?.toString() ?? "");
             setMinum(editItem.minum?.toString() ?? "");
             setPopulasi(editItem.populasi?.toString() ?? "");
             setBobot(editItem.bobot?.toString() ?? "");
             setNotes(editItem.notes ?? "");
         } else {
-            setDate(todayStr);
+            setDate(new Date().toISOString().slice(0, 10));
             setPakan(""); setMinum(""); setPopulasi(""); setBobot(""); setNotes("");
         }
         setError(null);
@@ -68,9 +69,9 @@ export function DailyLogModal({ open, onClose, onSuccess, editItem }: Props) {
                 notes: notes.trim() || undefined,
             };
             if (isEdit && editItem) {
-                await dailyLogsApi.update(editItem.id, payload, session.accessToken);
+                await dailyLogsApi.update(editItem.id, payload, session.accessToken, kandangId);
             } else {
-                await dailyLogsApi.save(payload, session.accessToken);
+                await dailyLogsApi.save({ ...payload, kandang_id: kandangId }, session.accessToken);
             }
             setSubmitted(true);
             setTimeout(() => {

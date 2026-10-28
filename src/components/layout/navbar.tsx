@@ -3,33 +3,33 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { Bell, AlertTriangle, HeartCrack, ArrowRight, Calendar, HelpCircle } from "lucide-react";
+import { Bell, Calendar, HelpCircle } from "lucide-react";
 import { notificationsApi } from "@/lib/api";
 import { useRealtimeNotifications } from "@/components/notification-provider";
 import { useTheme } from "@/components/providers/theme-provider";
 import { KandangSwitcher } from "@/components/KandangSwitcher";
 import { useKandangStore } from "@/store/useKandangStore";
+import { getRoleLabel } from "@/lib/utils";
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+interface NotificationItem {
+    id: string;
+    title: string;
+    is_read?: boolean;
+}
 
-function timeAgo(ts: string) {
-    const diff = Date.now() - new Date(ts).getTime();
-    const m = Math.floor(diff / 60000);
-    if (m < 1) return "baru saja";
-    if (m < 60) return `${m} mnt lalu`;
-    const h = Math.floor(m / 60);
-    if (h < 24) return `${h} jam lalu`;
-    return `${Math.floor(h / 24)} hari lalu`;
+function extractNotificationItems(response: unknown): NotificationItem[] {
+    const res = response as { data?: unknown; items?: unknown } | null;
+    const data = res?.data;
+    if (Array.isArray(data)) return data as NotificationItem[];
+    const nested = (data as { items?: unknown } | undefined)?.items;
+    if (Array.isArray(nested)) return nested as NotificationItem[];
+    if (Array.isArray(res?.items)) return res.items as NotificationItem[];
+    return [];
 }
 
 function stripEmoji(str: string) {
     return str.replace(/[\u{1F300}-\u{1FFFF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}⚠️🚨]/gu, "").trim();
 }
-
-const TYPE_ICON: Record<string, React.ReactNode> = {
-    abnormal_classification: <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />,
-    death_forecast: <HeartCrack className="w-3.5 h-3.5 text-red-500" />,
-};
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
@@ -41,7 +41,7 @@ export function Navbar() {
     : "fixed top-0 right-0 left-64 z-30 bg-white border-b border-gray-200";
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
-  const [dropNotifs, setDropNotifs] = useState<any[]>([]);
+  const [dropNotifs, setDropNotifs] = useState<NotificationItem[]>([]);
   const [dropLoading, setDropLoading] = useState(false);
   const [currentDate, setCurrentDate] = useState("");
 
@@ -84,13 +84,8 @@ export function Navbar() {
         if (!session?.accessToken) return;
         setDropLoading(true);
         try {
-            const res: any = await notificationsApi.list({ limit: 5 }, session.accessToken);
-            let items: any[] = [];
-            if (Array.isArray(res)) items = res;
-            else if (Array.isArray(res?.data?.items)) items = res.data.items;
-            else if (Array.isArray(res?.data)) items = res.data;
-            else if (Array.isArray(res?.items)) items = res.items;
-            setDropNotifs(items.slice(0, 5));
+            const res = await notificationsApi.list({ limit: 5 }, session.accessToken);
+            setDropNotifs(extractNotificationItems(res).slice(0, 5));
         } catch { /* silent */ } finally {
             setDropLoading(false);
         }
@@ -103,15 +98,6 @@ export function Navbar() {
             resetNewCount();
         }
         setShowDropdown(v => !v);
-    };
-
-    const handleDropMarkRead = async (id: string) => {
-        if (!session?.accessToken) return;
-        setDropNotifs(prev => prev.map(n => n.id === id ? { ...n, is_read: true } : n));
-        setUnreadCount(prev => Math.max(0, prev - 1));
-        try {
-            await notificationsApi.markAsRead(id, session.accessToken);
-        } catch { /* silent */ }
     };
 
     // Close on click outside
@@ -136,7 +122,7 @@ export function Navbar() {
         {/* AREA KIRI */}
         <div>
           <h2 className="text-slate-800 font-bold">
-            Selamat datang, {(session?.user as any)?.role || "Senior Farmer"}! 👋
+            Selamat datang, {getRoleLabel(session?.user?.role ?? "owner")}! 👋
           </h2>
           <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
             <Calendar className="w-3 h-3" />
@@ -180,7 +166,7 @@ export function Navbar() {
                     ) : dropNotifs.length === 0 ? (
                       <div className="py-8 text-center text-xs text-gray-400">Belum ada notifikasi</div>
                     ) : (
-                      dropNotifs.map((n: any) => (
+                      dropNotifs.map((n) => (
                         <div key={n.id} className="px-4 py-3 hover:bg-gray-50 cursor-pointer text-xs">
                           {stripEmoji(n.title)}
                         </div>

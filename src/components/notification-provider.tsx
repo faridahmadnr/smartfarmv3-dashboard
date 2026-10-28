@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, createContext, useContext } from "react";
-import { useNotificationWebSocket } from "@/hooks/useApi";
+import { useNotificationWebSocket, type IncomingNotification } from "@/hooks/useApi";
 
 interface ToastNotification {
     id: string;
@@ -33,7 +33,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
     const [toasts, setToasts] = useState<ToastNotification[]>([]);
     const [newNotificationCount, setNewNotificationCount] = useState(0);
 
-    const handleNotification = useCallback((notification: any) => {
+    const handleNotification = useCallback((notification: IncomingNotification) => {
         const id = notification.id || `toast-${Date.now()}`;
 
         setToasts((prev) => {

@@ -17,9 +17,10 @@ interface Props {
     onClose: () => void;
     onSuccess?: () => void;
     editItem?: DeathReportItem | null;
+    kandangId?: string;
 }
 
-export function DeathReportModal({ open, onClose, onSuccess, editItem }: Props) {
+export function DeathReportModal({ open, onClose, onSuccess, editItem, kandangId }: Props) {
     const { data: session } = useSession();
     const isEdit = !!editItem;
 
@@ -42,7 +43,7 @@ export function DeathReportModal({ open, onClose, onSuccess, editItem }: Props) 
         } else {
             setCount(1);
             setNotes("");
-            setTimestamp(todayStr);
+            setTimestamp(new Date().toISOString().slice(0, 16));
         }
         setError(null);
     }, [editItem, open]);
@@ -59,9 +60,9 @@ export function DeathReportModal({ open, onClose, onSuccess, editItem }: Props) 
                 timestamp: new Date(timestamp).toISOString(),
             };
             if (isEdit && editItem) {
-                await deathReportsApi.update(editItem.id, payload, session.accessToken);
+                await deathReportsApi.update(editItem.id, payload, session.accessToken, kandangId);
             } else {
-                await deathReportsApi.report(payload, session.accessToken);
+                await deathReportsApi.report({ ...payload, kandang_id: kandangId }, session.accessToken);
             }
             setSubmitted(true);
             setTimeout(() => {

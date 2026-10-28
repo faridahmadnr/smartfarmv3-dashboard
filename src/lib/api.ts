@@ -1,4 +1,4 @@
-import { ApiResponse, PaginatedResponse } from "@/types";
+import { ApiResponse } from "@/types";
 import { getSession } from "next-auth/react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
@@ -440,7 +440,8 @@ export const deathReportsApi = {
         const searchParams = new URLSearchParams();
         if (data.kandang_id) searchParams.set("kandang_id", data.kandang_id);
         const query = searchParams.toString();
-        const { kandang_id: _k, ...body } = data;
+        const body = { ...data };
+        delete body.kandang_id;
         return fetchWithAuth(`${API_PREFIX}/death-reports${query ? `?${query}` : ""}`, {
             method: "POST",
             body: JSON.stringify(body),
@@ -464,16 +465,22 @@ export const deathReportsApi = {
         return fetchWithAuth(`${API_PREFIX}/death-reports/today-total${query ? `?${query}` : ""}`, { token });
     },
 
-    update: async (id: string, data: { count?: number; notes?: string; timestamp?: string }, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/death-reports/${id}`, {
+    update: async (id: string, data: { count?: number; notes?: string; timestamp?: string }, token?: string, kandang_id?: string) => {
+        const searchParams = new URLSearchParams();
+        if (kandang_id) searchParams.set("kandang_id", kandang_id);
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/death-reports/${id}${query ? `?${query}` : ""}`, {
             method: "PUT",
             body: JSON.stringify(data),
             token,
         });
     },
 
-    delete: async (id: string, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/death-reports/${id}`, {
+    delete: async (id: string, token?: string, kandang_id?: string) => {
+        const searchParams = new URLSearchParams();
+        if (kandang_id) searchParams.set("kandang_id", kandang_id);
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/death-reports/${id}${query ? `?${query}` : ""}`, {
             method: "DELETE",
             token,
         });
@@ -494,7 +501,8 @@ export const dailyLogsApi = {
         const searchParams = new URLSearchParams();
         if (data.kandang_id) searchParams.set("kandang_id", data.kandang_id);
         const query = searchParams.toString();
-        const { kandang_id: _k, ...body } = data;
+        const body = { ...data };
+        delete body.kandang_id;
         return fetchWithAuth(`${API_PREFIX}/daily-logs${query ? `?${query}` : ""}`, {
             method: "POST",
             body: JSON.stringify(body),
@@ -520,16 +528,22 @@ export const dailyLogsApi = {
         return fetchWithAuth(`${API_PREFIX}/daily-logs${query ? `?${query}` : ""}`, { token });
     },
 
-    update: async (id: string, data: { date?: string; pakan?: number; minum?: number; populasi?: number; bobot?: number; notes?: string }, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/daily-logs/${id}`, {
+    update: async (id: string, data: { date?: string; pakan?: number; minum?: number; populasi?: number; bobot?: number; notes?: string }, token?: string, kandang_id?: string) => {
+        const searchParams = new URLSearchParams();
+        if (kandang_id) searchParams.set("kandang_id", kandang_id);
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/daily-logs/${id}${query ? `?${query}` : ""}`, {
             method: "PUT",
             body: JSON.stringify(data),
             token,
         });
     },
 
-    delete: async (id: string, token?: string) => {
-        return fetchWithAuth(`${API_PREFIX}/daily-logs/${id}`, {
+    delete: async (id: string, token?: string, kandang_id?: string) => {
+        const searchParams = new URLSearchParams();
+        if (kandang_id) searchParams.set("kandang_id", kandang_id);
+        const query = searchParams.toString();
+        return fetchWithAuth(`${API_PREFIX}/daily-logs/${id}${query ? `?${query}` : ""}`, {
             method: "DELETE",
             token,
         });

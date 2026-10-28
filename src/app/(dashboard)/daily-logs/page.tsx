@@ -14,6 +14,7 @@ import { ExportPDFModal } from "@/components/modals/ExportPDFModal";
 import { dailyLogsApi, deathReportsApi } from "@/lib/api";
 import { useDeathReports, useTodayDeathTotal } from "@/hooks/useApi";
 import { useKandangStore } from "@/store/useKandangStore";
+import { useRole } from "@/hooks/useRole";
 
 interface DailyLogItem {
     id: string;
@@ -71,7 +72,8 @@ function extractPage<T>(response: unknown): { items: T[]; total: number } {
 
 export default function DailyLogsPage() {
     const { data: session, status } = useSession();
-    const isPeternak = session?.user?.role === "peternak";
+    const { role } = useRole();
+    const canManageLogs = role === "admin" || role === "owner";
 
     // ── Kandang terpilih dari switcher navbar ─────────────────────────────────
     const selectedKandang = useKandangStore((s) => s.selectedKandang);
@@ -216,10 +218,10 @@ export default function DailyLogsPage() {
         setDeleteLoading(true);
         try {
             if (deleteTarget.type === "log") {
-                await dailyLogsApi.delete(deleteTarget.id, session.accessToken);
+                await dailyLogsApi.delete(deleteTarget.id, session.accessToken, kandangId);
                 load(); loadChartData();
             } else {
-                await deathReportsApi.delete(deleteTarget.id, session.accessToken);
+                await deathReportsApi.delete(deleteTarget.id, session.accessToken, kandangId);
                 refetchDeaths(); refetchDeathTotal(); loadChartData();
             }
         } catch { /* silent */ } finally {
@@ -251,7 +253,7 @@ export default function DailyLogsPage() {
                         <RefreshCw className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} />
                         Refresh
                     </button>
-                    {isPeternak && (
+                    {canManageLogs && (
                         <>
                             <button onClick={() => { setEditDeath(null); setShowDeathModal(true); }}
                                 className="flex items-center gap-1.5 px-3 py-1.5 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-lg transition-colors">
@@ -415,7 +417,7 @@ export default function DailyLogsPage() {
                                 <BookOpen className="w-6 h-6 text-gray-300" />
                             </div>
                             <p className="text-sm text-gray-400">{hasFilter ? "Tidak ada data untuk rentang tanggal ini" : "Belum ada log harian"}</p>
-                            {!hasFilter && isPeternak && (
+                            {!hasFilter && canManageLogs && (
                                 <button onClick={() => { setEditLog(null); setShowModal(true); }} className="mt-3 text-xs text-emerald-600 hover:text-emerald-700 font-medium">
                                     + Input sekarang
                                 </button>
@@ -426,7 +428,7 @@ export default function DailyLogsPage() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="bg-gray-50/80">
-                                        {["Tanggal", "Pakan (kg)", "Minum (L)", "Populasi", "Bobot (g)", "Catatan", ...(isPeternak ? [""] : [])].map((h, i) => (
+                                        {["Tanggal", "Pakan (kg)", "Minum (L)", "Populasi", "Bobot (g)", "Catatan", ...(canManageLogs ? [""] : [])].map((h, i) => (
                                             <th key={i} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
                                         ))}
                                     </tr>
@@ -440,7 +442,7 @@ export default function DailyLogsPage() {
                                             <td className="py-3 px-4 text-gray-700 tabular-nums">{row.populasi?.toLocaleString() ?? <span className="text-gray-300">—</span>}</td>
                                             <td className="py-3 px-4 text-gray-700 tabular-nums">{row.bobot ?? <span className="text-gray-300">—</span>}</td>
                                             <td className="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">{row.notes || <span className="text-gray-300">—</span>}</td>
-                                            {isPeternak && (
+                                            {canManageLogs && (
                                                 <td className="py-3 px-4 whitespace-nowrap">
                                                     <div className="flex items-center gap-1">
                                                         <button onClick={() => { setEditLog(row); setShowModal(true); }}
@@ -512,7 +514,7 @@ export default function DailyLogsPage() {
                                 <HeartCrack className="w-6 h-6 text-gray-300" />
                             </div>
                             <p className="text-sm text-gray-400">Belum ada laporan kematian</p>
-                            {isPeternak && (
+                            {canManageLogs && (
                                 <button onClick={() => { setEditDeath(null); setShowDeathModal(true); }} className="mt-3 text-xs text-red-600 hover:text-red-700 font-medium">
                                     + Laporkan sekarang
                                 </button>
@@ -523,7 +525,7 @@ export default function DailyLogsPage() {
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="bg-gray-50/80">
-                                        {["Waktu Laporan", "Jumlah", "Catatan", ...(isPeternak ? [""] : [])].map((h, i) => (
+                                        {["Waktu Laporan", "Jumlah", "Catatan", ...(canManageLogs ? [""] : [])].map((h, i) => (
                                             <th key={i} className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide text-left whitespace-nowrap">{h}</th>
                                         ))}
                                     </tr>
@@ -539,7 +541,7 @@ export default function DailyLogsPage() {
                                                 </td>
                                                 <td className="py-3 px-4 font-semibold tabular-nums text-red-600">{row.count} ekor</td>
                                                 <td className="py-3 px-4 text-xs text-gray-500 max-w-xs truncate">{row.notes || <span className="text-gray-300">—</span>}</td>
-                                                {isPeternak && (
+                                                {canManageLogs && (
                                                     <td className="py-3 px-4 whitespace-nowrap">
                                                         <div className="flex items-center gap-1">
                                                             <button onClick={() => { setEditDeath(row); setShowDeathModal(true); }}
@@ -607,12 +609,14 @@ export default function DailyLogsPage() {
                 onClose={() => { setShowModal(false); setEditLog(null); }}
                 onSuccess={() => { load(); loadChartData(); }}
                 editItem={editLog}
+                kandangId={kandangId}
             />
             <DeathReportModal
                 open={showDeathModal}
                 onClose={() => { setShowDeathModal(false); setEditDeath(null); }}
                 onSuccess={handleDeathSuccess}
                 editItem={editDeath}
+                kandangId={kandangId}
             />
             <ExportPDFModal
                 open={showExport}

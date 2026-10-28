@@ -1,11 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useSession } from "next-auth/react";
 import { Birdhouse, Loader2, X } from "lucide-react";
 import { useKandangStore, Kandang, KandangType } from "@/store/useKandangStore";
 import { ToastType } from "@/components/ui/toast";
+import { usersApi } from "@/lib/api";
+import { useRole } from "@/hooks/useRole";
 
 type Notify = (message: string, type?: ToastType) => void;
+
+interface OwnerOption {
+    id: string;
+    full_name: string;
+    username?: string;
+}
+
+function extractOwners(response: unknown): OwnerOption[] {
+    const res = response as { data?: unknown; items?: unknown } | null;
+    const data = res?.data;
+    if (Array.isArray(data)) return data as OwnerOption[];
+    const nested = (data as { items?: unknown } | undefined)?.items;
+    if (Array.isArray(nested)) return nested as OwnerOption[];
+    if (Array.isArray(res?.items)) return res.items as OwnerOption[];
+    return [];
+}
 
 interface FormProps {
     editingKandang: Kandang | null;
@@ -15,6 +34,8 @@ interface FormProps {
 
 function KandangForm({ editingKandang, onClose, onNotify }: FormProps) {
     const { createKandang, updateKandang, isSubmitting } = useKandangStore();
+    const { isAdmin } = useRole();
+    const { data: session } = useSession();
     const isEdit = !!editingKandang;
 
     const [name, setName] = useState(editingKandang?.name ?? "");
@@ -23,16 +44,47 @@ function KandangForm({ editingKandang, onClose, onNotify }: FormProps) {
         editingKandang ? String(editingKandang.capacity) : ""
     );
     const [isActive, setIsActive] = useState(editingKandang?.isActive ?? true);
+    const [owners, setOwners] = useState<OwnerOption[]>([]);
+    const [ownersLoading, setOwnersLoading] = useState(false);
+    const [pemilikId, setPemilikId] = useState("");
+
+    // Admin wajib memilih Owner pemilik kandang; tanpa ini backend assign ke akun admin.
+    useEffect(() => {
+        if (!isAdmin || isEdit || !session?.accessToken) return;
+        let active = true;
+        const timer = setTimeout(() => {
+            if (!active) return;
+            setOwnersLoading(true);
+            usersApi.list({ role: "pemilik", per_page: 100 }, session.accessToken)
+                .then((res) => {
+                    if (!active) return;
+                    const list = extractOwners(res);
+                    setOwners(list);
+                    setPemilikId((prev) => prev || list[0]?.id || "");
+                })
+                .catch(() => { if (active) setOwners([]); })
+                .finally(() => { if (active) setOwnersLoading(false); });
+        }, 0);
+        return () => { active = false; clearTimeout(timer); };
+    }, [isAdmin, isEdit, session?.accessToken]);
+
+    const requireOwner = isAdmin && !isEdit;
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!name.trim() || isSubmitting) return;
+
+        if (requireOwner && !pemilikId) {
+            onNotify("Pilih Owner pemilik kandang terlebih dahulu", "error");
+            return;
+        }
 
         const payload = {
             name: name.trim(),
             type,
             capacity: parseInt(capacity) || 0,
             isActive,
+            pemilikId: requireOwner ? pemilikId : undefined,
         };
 
         const success =
@@ -126,6 +178,37 @@ function KandangForm({ editingKandang, onClose, onNotify }: FormProps) {
                 </select>
             </div>
 
+            {/* Owner (khusus admin, saat tambah kandang) */}
+            {requireOwner && (
+                <div>
+                    <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">
+                        Owner Pemilik Kandang
+                    </label>
+                    {ownersLoading ? (
+                        <div className="flex items-center gap-2 text-xs text-gray-400 py-2.5">
+                            <Loader2 className="w-3.5 h-3.5 animate-spin" /> Memuat daftar Owner...
+                        </div>
+                    ) : owners.length === 0 ? (
+                        <p className="text-xs text-amber-700 bg-amber-50 border border-amber-100 rounded-xl px-3 py-2">
+                            Belum ada akun Owner. Buat akun Owner dulu di menu Manajemen User.
+                        </p>
+                    ) : (
+                        <select
+                            value={pemilikId}
+                            onChange={(e) => setPemilikId(e.target.value)}
+                            disabled={isSubmitting}
+                            className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white focus:outline-none focus:ring-2 focus:ring-emerald-500/30 text-gray-700 disabled:bg-gray-50"
+                        >
+                            {owners.map((owner) => (
+                                <option key={owner.id} value={owner.id}>
+                                    {owner.full_name}{owner.username ? ` (@${owner.username})` : ""}
+                                </option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+            )}
+
             {/* Actions */}
             <div className="flex gap-2 pt-1">
                 <button
@@ -138,7 +221,7 @@ function KandangForm({ editingKandang, onClose, onNotify }: FormProps) {
                 </button>
                 <button
                     type="submit"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || (requireOwner && owners.length === 0)}
                     className="flex-1 py-2.5 text-sm font-semibold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors disabled:opacity-60 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                     {isSubmitting && <Loader2 className="w-4 h-4 animate-spin" />}

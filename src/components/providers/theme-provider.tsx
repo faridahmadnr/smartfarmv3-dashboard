@@ -18,11 +18,14 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     const [theme, setThemeState] = useState<Theme>("green");
 
     useEffect(() => {
-        const saved = localStorage.getItem("sf-theme") as Theme | null;
-        if (saved && ["green", "blue", "dark"].includes(saved)) {
-            setThemeState(saved);
-            document.documentElement.setAttribute("data-theme", saved);
-        }
+        const id = setTimeout(() => {
+            const saved = localStorage.getItem("sf-theme") as Theme | null;
+            if (saved && ["green", "blue", "dark"].includes(saved)) {
+                setThemeState(saved);
+                document.documentElement.setAttribute("data-theme", saved);
+            }
+        }, 0);
+        return () => clearTimeout(id);
     }, []);
 
     const setTheme = (newTheme: Theme) => {

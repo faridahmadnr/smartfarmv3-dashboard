@@ -1,6 +1,8 @@
 // API Response Types matching FastAPI backend
 
-export type UserRole = 'admin' | 'pemilik' | 'peternak';
+export type UserRole = 'admin' | 'owner';
+
+export type BackendRole = 'admin' | 'pemilik' | 'peternak';
 
 export interface User {
     id: string;
@@ -21,7 +23,7 @@ export interface LoginUserInfo {
     email: string;
     username: string;
     full_name: string;
-    role: UserRole;
+    role: BackendRole;
     pemilik_id?: string;
 }
 

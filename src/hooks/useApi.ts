@@ -13,6 +13,87 @@ function parseError(err: unknown): string | null {
     return "Failed to fetch";
 }
 
+type UnknownRecord = { [key: string]: unknown };
+
+function asRecord(value: unknown): UnknownRecord | null {
+    return value !== null && typeof value === "object" && !Array.isArray(value)
+        ? (value as UnknownRecord)
+        : null;
+}
+
+function extractList<T>(response: unknown): { items: T[]; total: number } {
+    if (Array.isArray(response)) {
+        return { items: response as T[], total: response.length };
+    }
+
+    const root = asRecord(response);
+    const data = root?.data;
+
+    if (Array.isArray(data)) {
+        return { items: data as T[], total: data.length };
+    }
+
+    for (const container of [root, asRecord(data)]) {
+        if (container && Array.isArray(container.items)) {
+            const items = container.items as T[];
+            const total = typeof container.total === "number" ? container.total : items.length;
+            return { items, total };
+        }
+    }
+
+    return { items: [], total: 0 };
+}
+
+function extractEntity<T>(response: unknown): T | null {
+    const root = asRecord(response);
+    if (!root) return null;
+    if (root.data && typeof root.data === "object") return root.data as T;
+    if ("id" in root) return root as T;
+    return null;
+}
+
+export interface IncomingNotification {
+    id?: string;
+    title?: string;
+    message?: string;
+    notification_type?: string;
+    kandang_id?: string;
+}
+
+interface NotificationPage {
+    items: Notification[];
+    unread_count: number;
+    total: number;
+    total_pages: number;
+    page: number;
+    limit: number;
+}
+
+function extractNotificationPage(response: unknown, fallbackPage: number, fallbackLimit: number): NotificationPage {
+    const { items, total } = extractList<Notification>(response);
+    const root = asRecord(response);
+    const container = asRecord(root?.data) ?? root;
+
+    return {
+        items,
+        unread_count: typeof container?.unread_count === "number"
+            ? container.unread_count
+            : items.filter((item) => !item.is_read).length,
+        total: typeof container?.total === "number" ? container.total : total,
+        total_pages: typeof container?.total_pages === "number" ? container.total_pages : 1,
+        page: typeof container?.page === "number" ? container.page : fallbackPage,
+        limit: typeof container?.limit === "number" ? container.limit : fallbackLimit,
+    };
+}
+
+function extractTodayTotal(response: unknown): number {
+    const root = asRecord(response);
+    const data = root?.data;
+    if (typeof data === "number") return data;
+    const container = asRecord(data) ?? root;
+    return typeof container?.total === "number" ? container.total : 0;
+}
+
 // Types
 export interface Kandang {
     id: string;
@@ -195,6 +276,7 @@ export function useMyKandang() {
 // Users hooks
 export function useUsers(params?: { role?: string; pemilik_id?: string }) {
     const { data: session, status } = useSession();
+    const { role, pemilik_id } = params ?? {};
     const [data, setData] = useState<{ items: User[]; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -211,30 +293,15 @@ export function useUsers(params?: { role?: string; pemilik_id?: string }) {
         setError(null);
 
         try {
-            const response = await usersApi.list(params, session.accessToken);
-            if (response && typeof response === "object") {
-                if ("items" in response) {
-                    const items = (response as any).items as User[];
-                    const total = (response as any).total || items.length;
-                    setData({ items, total });
-                } else if (Array.isArray(response)) {
-                    setData({ items: response as User[], total: response.length });
-                } else if ("data" in response && response.data) {
-                    const respData = response.data as any;
-                    if (Array.isArray(respData)) {
-                        setData({ items: respData, total: respData.length });
-                    } else {
-                        setData({ items: respData.items || [], total: respData.total || 0 });
-                    }
-                }
-            }
+            const response = await usersApi.list({ role, pemilik_id }, session.accessToken);
+            setData(extractList<User>(response));
         } catch (err) {
             console.error("Users fetch error:", err);
             setError(parseError(err));
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, status, params?.role, params?.pemilik_id]);
+    }, [session?.accessToken, status, role, pemilik_id]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -299,6 +366,7 @@ export function useUser(id: string) {
 // Sensor Data hooks
 export function useSensorData(params?: { page?: number; page_size?: number; start_date?: string; end_date?: string; kandang_id?: string }) {
     const { data: session, status } = useSession();
+    const { page, page_size, start_date, end_date, kandang_id } = params ?? {};
     const [data, setData] = useState<{ items: SensorData[]; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [isFetching, setIsFetching] = useState(false);
@@ -308,12 +376,12 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
     const hasData = useRef(false);
 
     useEffect(() => {
-        const key = `${params?.page}|${params?.page_size}|${params?.start_date}|${params?.end_date}|${params?.kandang_id}`;
+        const key = `${page}|${page_size}|${start_date}|${end_date}|${kandang_id}`;
         if (prevKey.current !== key) {
             prevKey.current = key;
             hasFetched.current = false;
         }
-    }, [params?.page, params?.page_size, params?.start_date, params?.end_date, params?.kandang_id]);
+    }, [page, page_size, start_date, end_date, kandang_id]);
 
     const refetch = useCallback(async () => {
         if (status === "loading") return;
@@ -330,26 +398,9 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
         setError(null);
 
         try {
-            const response = await sensorDataApi.list(params, session.accessToken);
-            if (response && typeof response === "object") {
-                if ("items" in response) {
-                    const items = (response as any).items as SensorData[];
-                    const total = (response as any).total || items.length;
-                    setData({ items, total });
-                    hasData.current = true;
-                } else if (Array.isArray(response)) {
-                    setData({ items: response as SensorData[], total: response.length });
-                    hasData.current = true;
-                } else if ("data" in response && response.data) {
-                    const respData = response.data as any;
-                    if (Array.isArray(respData)) {
-                        setData({ items: respData, total: respData.length });
-                    } else {
-                        setData({ items: respData.items || [], total: respData.total || 0 });
-                    }
-                    hasData.current = true;
-                }
-            }
+            const response = await sensorDataApi.list({ page, page_size, start_date, end_date, kandang_id }, session.accessToken);
+            setData(extractList<SensorData>(response));
+            hasData.current = true;
         } catch (err) {
             console.error("Sensor data fetch error:", err);
             setError(parseError(err));
@@ -357,7 +408,7 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
             setLoading(false);
             setIsFetching(false);
         }
-    }, [session?.accessToken, status, params?.page, params?.page_size, params?.start_date, params?.end_date, params?.kandang_id]);
+    }, [session?.accessToken, status, page, page_size, start_date, end_date, kandang_id]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -375,14 +426,7 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
 // Notifications hooks
 export function useNotifications(page: number = 1, limit: number = 20, kandangId?: string) {
     const { data: session, status } = useSession();
-    const [data, setData] = useState<{
-        items: Notification[];
-        unread_count: number;
-        total: number;
-        total_pages: number;
-        page: number;
-        limit: number;
-    } | null>(null);
+    const [data, setData] = useState<NotificationPage | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
 
@@ -397,39 +441,8 @@ export function useNotifications(page: number = 1, limit: number = 20, kandangId
         setError(null);
 
         try {
-            const response: any = await notificationsApi.list({ page, limit, kandang_id: kandangId }, session.accessToken);
-            if (response && typeof response === "object") {
-                const parseItems = (respData: any) => {
-                    if ("items" in respData && Array.isArray(respData.items)) {
-                        const items = respData.items as Notification[];
-                        setData({
-                            items,
-                            unread_count: respData.unread_count ?? items.filter(n => !n.is_read).length,
-                            total: respData.total ?? items.length,
-                            total_pages: respData.total_pages ?? 1,
-                            page: respData.page ?? page,
-                            limit: respData.limit ?? limit,
-                        });
-                        return true;
-                    }
-                    return false;
-                };
-
-                if (Array.isArray(response)) {
-                    const items = response as Notification[];
-                    setData({ items, unread_count: items.filter(n => !n.is_read).length, total: items.length, total_pages: 1, page: 1, limit });
-                } else if ("data" in response && response.data && typeof response.data === "object" && !Array.isArray(response.data)) {
-                    if (!parseItems(response.data)) {
-                        const items = response.data as Notification[];
-                        setData({ items, unread_count: items.filter(n => !n.is_read).length, total: items.length, total_pages: 1, page: 1, limit });
-                    }
-                } else if ("data" in response && Array.isArray(response.data)) {
-                    const items = response.data as Notification[];
-                    setData({ items, unread_count: items.filter(n => !n.is_read).length, total: items.length, total_pages: 1, page: 1, limit });
-                } else {
-                    parseItems(response);
-                }
-            }
+            const response = await notificationsApi.list({ page, limit, kandang_id: kandangId }, session.accessToken);
+            setData(extractNotificationPage(response, page, limit));
         } catch (err) {
             console.error("Notifications fetch error:", err);
             setError(parseError(err));
@@ -457,7 +470,7 @@ export function useUpdateKandang() {
     const [error, setError] = useState<string | null>(null);
 
     const mutate = useCallback(
-        async (id: string, data: any): Promise<{ success: boolean; error?: string }> => {
+        async (id: string, data: Parameters<typeof kandangApi.update>[1]): Promise<{ success: boolean; error?: string }> => {
             if (!session?.accessToken) {
                 return { success: false, error: "No access token" };
             }
@@ -518,7 +531,7 @@ export function useCreateUser() {
     const [error, setError] = useState<string | null>(null);
 
     const mutate = useCallback(
-        async (data: any): Promise<{ success: boolean; data?: User; error?: string }> => {
+        async (data: Parameters<typeof usersApi.create>[0]): Promise<{ success: boolean; data?: User; error?: string }> => {
             if (!session?.accessToken) {
                 return { success: false, error: "No access token" };
             }
@@ -610,7 +623,7 @@ export function useCreateSensorData() {
     const [error, setError] = useState<string | null>(null);
 
     const mutate = useCallback(
-        async (data: any): Promise<{ success: boolean; data?: SensorData; error?: string }> => {
+        async (data: Parameters<typeof sensorDataApi.create>[0]): Promise<{ success: boolean; data?: SensorData; error?: string }> => {
             if (!session?.accessToken) {
                 return { success: false, error: "No access token" };
             }
@@ -698,6 +711,7 @@ export function useMarkAllNotificationsAsRead() {
 // Activity Logs hooks
 export function useActivityLogs(params?: { page?: number; per_page?: number; action?: string; resource?: string }) {
     const { data: session, status } = useSession();
+    const { page, per_page, action, resource } = params ?? {};
     const [data, setData] = useState<{ items: ActivityLog[]; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -715,30 +729,15 @@ export function useActivityLogs(params?: { page?: number; per_page?: number; act
         setError(null);
 
         try {
-            const response = await activityLogsApi.list(params, session.accessToken);
-            if (response && typeof response === "object") {
-                if ("items" in response) {
-                    const items = (response as any).items as ActivityLog[];
-                    const total = (response as any).total || items.length;
-                    setData({ items, total });
-                } else if (Array.isArray(response)) {
-                    setData({ items: response as ActivityLog[], total: response.length });
-                } else if ("data" in response && response.data) {
-                    const respData = response.data as any;
-                    if (Array.isArray(respData)) {
-                        setData({ items: respData, total: respData.length });
-                    } else {
-                        setData({ items: respData.items || [], total: respData.total || 0 });
-                    }
-                }
-            }
+            const response = await activityLogsApi.list({ page, per_page, action, resource }, session.accessToken);
+            setData(extractList<ActivityLog>(response));
         } catch (err) {
             console.error("Activity logs fetch error:", err);
             setError(parseError(err));
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, status, params?.page, params?.per_page, params?.action, params?.resource]);
+    }, [session?.accessToken, status, page, per_page, action, resource]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -755,6 +754,7 @@ export function useActivityLogs(params?: { page?: number; per_page?: number; act
 
 export function useMyActivityLogs(params?: { page?: number; per_page?: number }) {
     const { data: session, status } = useSession();
+    const { page, per_page } = params ?? {};
     const [data, setData] = useState<{ items: ActivityLog[]; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -771,30 +771,15 @@ export function useMyActivityLogs(params?: { page?: number; per_page?: number })
         setError(null);
 
         try {
-            const response = await activityLogsApi.getMyLogs(params, session.accessToken);
-            if (response && typeof response === "object") {
-                if ("items" in response) {
-                    const items = (response as any).items as ActivityLog[];
-                    const total = (response as any).total || items.length;
-                    setData({ items, total });
-                } else if (Array.isArray(response)) {
-                    setData({ items: response as ActivityLog[], total: response.length });
-                } else if ("data" in response && response.data) {
-                    const respData = response.data as any;
-                    if (Array.isArray(respData)) {
-                        setData({ items: respData, total: respData.length });
-                    } else {
-                        setData({ items: respData.items || [], total: respData.total || 0 });
-                    }
-                }
-            }
+            const response = await activityLogsApi.getMyLogs({ page, per_page }, session.accessToken);
+            setData(extractList<ActivityLog>(response));
         } catch (err) {
             console.error("My activity logs fetch error:", err);
             setError(parseError(err));
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, status, params?.page, params?.per_page]);
+    }, [session?.accessToken, status, page, per_page]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -1043,7 +1028,7 @@ export interface DailyLog {
     updated_at: string;
 }
 
-export function useTodayDailyLog() {
+export function useTodayDailyLog(kandangId?: string) {
     const { data: session, status } = useSession();
     const [data, setData] = useState<DailyLog | null>(null);
     const [loading, setLoading] = useState(true);
@@ -1053,14 +1038,14 @@ export function useTodayDailyLog() {
         if (!session?.accessToken) { setLoading(false); return; }
         setLoading(true);
         try {
-            const res: any = await dailyLogsApi.getToday(session.accessToken);
-            setData(res?.data ?? null);
+            const res = await dailyLogsApi.getToday(kandangId, session.accessToken);
+            setData(extractEntity<DailyLog>(res));
         } catch (err) {
             setError(parseError(err));
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken]);
+    }, [session?.accessToken, kandangId]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -1083,6 +1068,7 @@ export interface DeathReportItem {
 
 export function useDeathReports(params?: { page?: number; per_page?: number; kandangId?: string }) {
     const { data: session, status } = useSession();
+    const { page = 1, per_page = 10, kandangId } = params ?? {};
     const [data, setData] = useState<{ items: DeathReportItem[]; total: number } | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
@@ -1091,18 +1077,17 @@ export function useDeathReports(params?: { page?: number; per_page?: number; kan
         if (!session?.accessToken) { setLoading(false); return; }
         setLoading(true);
         try {
-            const res: any = await deathReportsApi.list(
-                { per_page: params?.per_page ?? 10, page: params?.page ?? 1, kandang_id: params?.kandangId },
+            const res = await deathReportsApi.list(
+                { per_page, page, kandang_id: kandangId },
                 session.accessToken,
             );
-            const d = res?.data ?? res;
-            setData({ items: d?.items ?? [], total: d?.total ?? 0 });
+            setData(extractList<DeathReportItem>(res));
         } catch (err) {
             setError(parseError(err));
         } finally {
             setLoading(false);
         }
-    }, [session?.accessToken, params?.page, params?.per_page, params?.kandangId]);
+    }, [session?.accessToken, page, per_page, kandangId]);
 
     useEffect(() => {
         if (status === "loading") return;
@@ -1122,9 +1107,8 @@ export function useTodayDeathTotal(kandangId?: string) {
         if (!session?.accessToken) { setLoading(false); return; }
         setLoading(true);
         try {
-            const res: any = await deathReportsApi.getTodayTotal(kandangId, session.accessToken);
-            const d = res?.data ?? res;
-            setTotal(typeof d?.total === "number" ? d.total : (typeof d === "number" ? d : 0));
+            const res = await deathReportsApi.getTodayTotal(kandangId, session.accessToken);
+            setTotal(extractTodayTotal(res));
         } catch {
             setTotal(0);
         } finally {
@@ -1143,14 +1127,16 @@ export function useTodayDeathTotal(kandangId?: string) {
 
 // WebSocket Notification hook
 export function useNotificationWebSocket(
-    onNotification?: (notification: any) => void
+    onNotification?: (notification: IncomingNotification) => void
 ) {
     const { data: session, status } = useSession();
+    const accessToken = session?.accessToken;
     const wsRef = useRef<WebSocket | null>(null);
     const [connected, setConnected] = useState(false);
     const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
     const pingIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const onNotificationRef = useRef(onNotification);
+    const connectRef = useRef<() => void>(() => {});
 
     // Keep callback ref up to date without re-triggering connect
     useEffect(() => {
@@ -1158,7 +1144,7 @@ export function useNotificationWebSocket(
     }, [onNotification]);
 
     const connect = useCallback(() => {
-        if (status !== "authenticated" || !session?.accessToken) return;
+        if (status !== "authenticated" || !accessToken) return;
 
         // Close existing connection
         if (wsRef.current) {
@@ -1166,7 +1152,7 @@ export function useNotificationWebSocket(
         }
 
         try {
-            const wsUrl = getNotificationWsUrl(session.accessToken);
+            const wsUrl = getNotificationWsUrl(accessToken);
             const ws = new WebSocket(wsUrl);
 
             ws.onopen = () => {
@@ -1186,7 +1172,7 @@ export function useNotificationWebSocket(
                     // Ignore pong responses
                     if (event.data === "pong") return;
 
-                    const message = JSON.parse(event.data);
+                    const message = JSON.parse(event.data) as { type?: string; data?: IncomingNotification };
 
                     // Only handle notification messages, ignore sensor_data etc.
                     if (message.type === "notification" && message.data && onNotificationRef.current) {
@@ -1209,7 +1195,7 @@ export function useNotificationWebSocket(
                 // Auto-reconnect after 5 seconds (unless intentionally closed)
                 if (event.code !== 1000 && event.code !== 4001) {
                     reconnectTimeoutRef.current = setTimeout(() => {
-                        connect();
+                        connectRef.current();
                     }, 5000);
                 }
             };
@@ -1222,7 +1208,11 @@ export function useNotificationWebSocket(
         } catch (err) {
             console.error("Failed to create WebSocket:", err);
         }
-    }, [status, session?.accessToken]);
+    }, [status, accessToken]);
+
+    useEffect(() => {
+        connectRef.current = connect;
+    }, [connect]);
 
     useEffect(() => {
         connect();

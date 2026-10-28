@@ -8,9 +8,10 @@ interface KandangCardProps {
     kandang: Kandang;
     onEdit: (kandang: Kandang) => void;
     onDelete: (kandang: Kandang) => void;
+    canManage?: boolean;
 }
 
-export function KandangCard({ kandang, onEdit, onDelete }: KandangCardProps) {
+export function KandangCard({ kandang, onEdit, onDelete, canManage = false }: KandangCardProps) {
     return (
         <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200">
             {/* Badges */}
@@ -27,6 +28,9 @@ export function KandangCard({ kandang, onEdit, onDelete }: KandangCardProps) {
             <div className="mb-4">
                 <h3 className="text-lg font-bold text-slate-800 leading-tight">{kandang.name}</h3>
                 <p className="text-xs text-slate-400 mt-0.5">ID: {kandang.code}</p>
+                {kandang.pemilikName && (
+                    <p className="text-xs text-slate-400 mt-0.5">Pemilik: {kandang.pemilikName}</p>
+                )}
             </div>
 
             {/* Kapasitas */}
@@ -35,23 +39,24 @@ export function KandangCard({ kandang, onEdit, onDelete }: KandangCardProps) {
                 <span>Kapasitas: {kandang.capacity.toLocaleString("id-ID")} Ekor</span>
             </div>
 
-            {/* Actions */}
-            <div className="flex justify-end gap-3 mt-4 border-t border-slate-100 pt-5">
-                <button
-                    onClick={() => onEdit(kandang)}
-                    className="border border-slate-200 bg-white text-slate-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-50 transition-colors"
-                >
-                    <Pencil className="w-4 h-4" />
-                    Edit
-                </button>
-                <button
-                    onClick={() => onDelete(kandang)}
-                    className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-red-700 transition-colors"
-                >
-                    <Trash2 className="w-4 h-4" />
-                    Hapus
-                </button>
-            </div>
+            {canManage && (
+                <div className="flex justify-end gap-3 mt-4 border-t border-slate-100 pt-5">
+                    <button
+                        onClick={() => onEdit(kandang)}
+                        className="border border-slate-200 bg-white text-slate-600 px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-slate-50 transition-colors"
+                    >
+                        <Pencil className="w-4 h-4" />
+                        Edit
+                    </button>
+                    <button
+                        onClick={() => onDelete(kandang)}
+                        className="bg-red-600 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 hover:bg-red-700 transition-colors"
+                    >
+                        <Trash2 className="w-4 h-4" />
+                        Hapus
+                    </button>
+                </div>
+            )}
         </div>
     );
 }

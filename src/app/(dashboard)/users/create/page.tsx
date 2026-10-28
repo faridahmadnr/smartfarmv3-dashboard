@@ -1,21 +1,18 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import Link from "next/link";
 import { useCreateUser } from "@/hooks/useApi";
+import { RequireAdmin } from "@/components/auth/require-admin";
+import { toApiRole, type UserRole } from "@/lib/roles";
 
-export default function CreateUserPage() {
+function CreateUserContent() {
     const router = useRouter();
-    const { data: session, status } = useSession();
     const { mutate: createUser, loading: creating } = useCreateUser();
-
-    const isAdmin = session?.user?.role === "admin";
-    const isPemilik = session?.user?.role === "pemilik";
 
     const [formData, setFormData] = useState({
         username: "",
@@ -23,31 +20,9 @@ export default function CreateUserPage() {
         full_name: "",
         email: "",
         phone: "",
-        role: isPemilik ? "peternak" : "peternak",
+        role: "owner" as UserRole,
     });
     const [error, setError] = useState("");
-
-    if (status === "loading") {
-        return (
-            <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            </div>
-        );
-    }
-
-    // Only admin and pemilik can create users
-    if (!isAdmin && !isPemilik) {
-        return (
-            <div className="space-y-6">
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-red-700">Anda tidak memiliki akses untuk membuat user</p>
-                </div>
-                <Link href="/users">
-                    <Button variant="secondary">← Kembali</Button>
-                </Link>
-            </div>
-        );
-    }
 
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -78,19 +53,14 @@ export default function CreateUserPage() {
             return;
         }
 
-        const payload: any = {
+        const payload = {
             username: formData.username,
             password: formData.password,
             full_name: formData.full_name,
             email: formData.email,
             phone: formData.phone || undefined,
-            role: formData.role,
+            role: toApiRole(formData.role),
         };
-
-        // If pemilik creating peternak, add pemilik_id
-        if (isPemilik) {
-            payload.pemilik_id = session?.user?.id;
-        }
 
         const result = await createUser(payload);
 
@@ -112,9 +82,7 @@ export default function CreateUserPage() {
 
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                    {isPemilik ? "Tambah Peternak" : "Tambah User"}
-                </h1>
+                <h1 className="text-2xl font-bold text-gray-900">Tambah User</h1>
                 <p className="text-gray-500 mt-1">Isi data berikut untuk membuat akun pengguna baru</p>
             </div>
 
@@ -193,27 +161,17 @@ export default function CreateUserPage() {
                             </div>
                         </div>
 
-                        {/* Section: Role — hanya untuk admin, tanpa pilihan admin */}
-                        {isAdmin && (
-                            <div>
-                                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Hak Akses</h2>
-                                <div className="max-w-xs">
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
-                                    <Select name="role" value={formData.role} onChange={handleChange}>
-                                        <option value="pemilik">Pemilik</option>
-                                        <option value="peternak">Peternak</option>
-                                    </Select>
-                                </div>
+                        {/* Section: Hak Akses */}
+                        <div>
+                            <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3">Hak Akses</h2>
+                            <div className="max-w-xs">
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Role</label>
+                                <Select name="role" value={formData.role} onChange={handleChange}>
+                                    <option value="owner">Owner</option>
+                                    <option value="admin">Admin</option>
+                                </Select>
                             </div>
-                        )}
-
-                        {isPemilik && (
-                            <div className="p-3 bg-blue-50 border border-blue-100 rounded-lg">
-                                <p className="text-sm text-blue-700">
-                                    User akan dibuat sebagai <strong>Peternak</strong> di bawah akun Anda.
-                                </p>
-                            </div>
-                        )}
+                        </div>
 
                         <div className="flex justify-end gap-3 pt-4 border-t border-gray-100">
                             <Link href="/users">
@@ -239,5 +197,13 @@ export default function CreateUserPage() {
                 </CardContent>
             </Card>
         </div>
+    );
+}
+
+export default function CreateUserPage() {
+    return (
+        <RequireAdmin>
+            <CreateUserContent />
+        </RequireAdmin>
     );
 }

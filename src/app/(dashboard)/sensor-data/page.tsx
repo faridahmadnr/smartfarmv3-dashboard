@@ -17,8 +17,8 @@ import {
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { useSensorData, useCreateSensorData } from "@/hooks/useApi";
-import { useLiveSensorData } from "@/hooks/useLiveSensorData";
+import { useSensorData, useCreateSensorData, type SensorData } from "@/hooks/useApi";
+import { useLiveSensorData, type LiveSensorReading } from "@/hooks/useLiveSensorData";
 import { useKandangStore } from "@/store/useKandangStore";
 
 // ─── Stat Card (same pattern as dashboard) ────────────────────────────────────
@@ -51,12 +51,87 @@ function StatCard({
 
 type SortKey = "timestamp" | "hari_ke" | "suhu" | "kelembaban" | "amoniak" | "populasi";
 type SortDir = "asc" | "desc";
+type SensorRow = SensorData | LiveSensorReading;
+
+interface ChartPoint {
+    time: string;
+    date: string;
+    fullTime: string;
+    suhu: number;
+    kelembaban: number;
+    amoniak: number;
+    populasi?: number | null;
+    death?: number | null;
+    pakan?: number | null;
+    minum?: number | null;
+}
+
+const SENSOR_FIELDS: { label: string; name: "suhu" | "kelembaban" | "amoniak"; step: string; placeholder: string }[] = [
+    { label: "Suhu (°C)", name: "suhu", step: "0.1", placeholder: "28.5" },
+    { label: "Kelembaban (%)", name: "kelembaban", step: "0.1", placeholder: "72" },
+    { label: "Amoniak (ppm)", name: "amoniak", step: "0.001", placeholder: "3.2" },
+];
 
 function SortIcon({ col, sortKey, sortDir }: { col: SortKey; sortKey: SortKey; sortDir: SortDir }) {
     if (col !== sortKey) return <ArrowUpDown className="w-3 h-3 text-gray-300" />;
     return sortDir === "asc"
         ? <ArrowUp className="w-3 h-3 text-green-600" />
         : <ArrowDown className="w-3 h-3 text-green-600" />;
+}
+
+function ChartTick({ x = 0, y = 0, index = 0, data }: {
+    x?: number; y?: number; index?: number; data: ChartPoint[];
+}) {
+    const entry = data[index];
+    if (!entry) return null;
+    const prevEntry = index > 0 ? data[index - 1] : null;
+    const showDate = !prevEntry || prevEntry.date !== entry.date;
+    return (
+        <g transform={`translate(${x},${y})`}>
+            <text x={0} y={0} dy={14} textAnchor="middle" fill="#9ca3af" fontSize={11}>
+                {entry.time}
+            </text>
+            {showDate && (
+                <text x={0} y={0} dy={28} textAnchor="middle" fill="#6b7280" fontSize={9} fontWeight={600}>
+                    {entry.date}
+                </text>
+            )}
+        </g>
+    );
+}
+
+function ChartTooltipContent({ active, payload }: {
+    active?: boolean;
+    payload?: { color?: string; name?: string; value?: number | string; payload?: ChartPoint }[];
+}) {
+    if (!active || !payload?.length) return null;
+    const entry = payload[0]?.payload;
+    return (
+        <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "12px 16px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
+            <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 8, fontWeight: 600 }}>{entry?.fullTime}</p>
+            {payload.map((p, i) => (
+                <p key={i} style={{ fontSize: 12, color: p.color, margin: "2px 0" }}>
+                    {p.name}: <strong>{typeof p.value === "number" ? p.value.toFixed(2) : p.value}</strong>
+                </p>
+            ))}
+        </div>
+    );
+}
+
+function SensorThSort({ col, label, sortKey, sortDir, onSort }: {
+    col: SortKey; label: string; sortKey: SortKey; sortDir: SortDir; onSort: (key: SortKey) => void;
+}) {
+    return (
+        <th
+            className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer select-none"
+            onClick={() => onSort(col)}
+        >
+            <div className="flex items-center gap-1.5">
+                {label}
+                <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
+            </div>
+        </th>
+    );
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
@@ -155,7 +230,10 @@ export default function SensorDataPage() {
     const { mutate: createSensorData, loading: creating } = useCreateSensorData();
 
     const chartPresetRef = useRef(chartPreset);
-    chartPresetRef.current = chartPreset;
+
+    useEffect(() => {
+        chartPresetRef.current = chartPreset;
+    }, [chartPreset]);
 
     const handleNewData = useCallback(() => {
         refetch();
@@ -180,16 +258,16 @@ export default function SensorDataPage() {
     const [formSuccess, setFormSuccess] = useState("");
 
     // ── Merge live WS data ────────────────────────────────────────────────────
-    const rawApiData = sensorData?.items || [];
     const total = sensorData?.total ?? 0;
     const totalPages = Math.max(1, Math.ceil(total / pageSize));
 
-    const rawData = useMemo(() => {
-        if (liveReadings.length === 0 || currentPage !== 1) return rawApiData;
-        const apiIds = new Set(rawApiData.map((r: any) => r.id));
+    const rawData = useMemo<SensorRow[]>(() => {
+        const apiData = sensorData?.items ?? [];
+        if (liveReadings.length === 0 || currentPage !== 1) return apiData;
+        const apiIds = new Set(apiData.map((r) => r.id));
         const uniqueLive = liveReadings.filter(lr => !apiIds.has(lr.id));
-        return [...uniqueLive, ...rawApiData];
-    }, [liveReadings, rawApiData, currentPage]);
+        return [...uniqueLive, ...apiData];
+    }, [sensorData?.items, liveReadings, currentPage]);
 
     const canInput = session?.user?.role === "admin";
 
@@ -199,14 +277,13 @@ export default function SensorDataPage() {
 
         // Hari ke filter
         if (hariKeFilter.trim()) {
-            data = data.filter((r: any) => String(r.hari_ke) === hariKeFilter.trim());
+            data = data.filter((r) => String(r.hari_ke) === hariKeFilter.trim());
         }
 
         // Sort
-        data.sort((a: any, b: any) => {
-            let av = a[sortKey], bv = b[sortKey];
-            if (sortKey === "timestamp") { av = new Date(av).getTime(); bv = new Date(bv).getTime(); }
-            av = av ?? 0; bv = bv ?? 0;
+        data.sort((a, b) => {
+            const av = sortKey === "timestamp" ? new Date(a.timestamp).getTime() : Number(a[sortKey] ?? 0);
+            const bv = sortKey === "timestamp" ? new Date(b.timestamp).getTime() : Number(b[sortKey] ?? 0);
             return sortDir === "asc" ? (av > bv ? 1 : -1) : (av < bv ? 1 : -1);
         });
 
@@ -220,22 +297,22 @@ export default function SensorDataPage() {
 
     // ── Stats ─────────────────────────────────────────────────────────────────
     const stats = rawData.length > 0 ? {
-        avgSuhu: (rawData.reduce((a: number, b: any) => a + (b.suhu || 0), 0) / rawData.length).toFixed(1),
-        minSuhu: Math.min(...rawData.map((r: any) => r.suhu || 0)).toFixed(1),
-        maxSuhu: Math.max(...rawData.map((r: any) => r.suhu || 0)).toFixed(1),
-        avgHum: (rawData.reduce((a: number, b: any) => a + (b.kelembaban || 0), 0) / rawData.length).toFixed(1),
-        avgAmmo: (rawData.reduce((a: number, b: any) => a + (b.amoniak || 0), 0) / rawData.length).toFixed(3),
+        avgSuhu: (rawData.reduce((a, b) => a + (b.suhu || 0), 0) / rawData.length).toFixed(1),
+        minSuhu: Math.min(...rawData.map((r) => r.suhu || 0)).toFixed(1),
+        maxSuhu: Math.max(...rawData.map((r) => r.suhu || 0)).toFixed(1),
+        avgHum: (rawData.reduce((a, b) => a + (b.kelembaban || 0), 0) / rawData.length).toFixed(1),
+        avgAmmo: (rawData.reduce((a, b) => a + (b.amoniak || 0), 0) / rawData.length).toFixed(3),
         latestPopulasi: rawData[0]?.populasi,
-        totalDeath: rawData.reduce((a: number, b: any) => a + (b.death || 0), 0),
+        totalDeath: rawData.reduce((a, b) => a + (b.death || 0), 0),
     } : null;
 
     // ── Chart data (uses large-page fetch + live readings) ───────────────────
-    const chartData = useMemo(() => {
-        const apiItems = chartApiData?.items || [];
-        const apiIds = new Set(apiItems.map((r: any) => r.id));
+    const chartData = useMemo<ChartPoint[]>(() => {
+        const apiItems: SensorData[] = chartApiData?.items ?? [];
+        const apiIds = new Set(apiItems.map((r) => r.id));
         const uniqueLive = liveReadings.filter(lr => !apiIds.has(lr.id));
-        const merged = [...uniqueLive, ...apiItems];
-        return [...merged].reverse().map((row: any) => {
+        const merged: SensorRow[] = [...uniqueLive, ...apiItems];
+        return [...merged].reverse().map((row) => {
             const d = new Date(row.timestamp);
             return {
                 time: d.toLocaleString("id-ID", { hour: "2-digit", minute: "2-digit" }),
@@ -246,21 +323,25 @@ export default function SensorDataPage() {
                 pakan: row.pakan ?? 0, minum: row.minum ?? 0,
             };
         });
-    }, [chartApiData, liveReadings]);
+    }, [chartApiData?.items, liveReadings]);
 
     // Auto-expand chart range when IoT is offline and no data in the current narrow window.
     // Only triggers once per mount — respects manual preset changes after that.
     const hasAutoExpanded = useRef(false);
     // Reset pagination & status auto-expand setiap kali kandang berganti
     useEffect(() => {
-        setCurrentPage(1);
-        hasAutoExpanded.current = false;
+        const id = setTimeout(() => {
+            setCurrentPage(1);
+            hasAutoExpanded.current = false;
+        }, 0);
+        return () => clearTimeout(id);
     }, [kandangId]);
     useEffect(() => {
         if (chartLoading) return;
         if (chartData.length === 0 && (chartPreset === "6h" || chartPreset === "today") && !hasAutoExpanded.current) {
             hasAutoExpanded.current = true;
-            applyPreset("7d");
+            const id = setTimeout(() => applyPreset("7d"), 0);
+            return () => clearTimeout(id);
         }
     }, [chartLoading, chartData.length, chartPreset, applyPreset]);
 
@@ -273,54 +354,11 @@ export default function SensorDataPage() {
         return `${first.date} – ${last.date}`;
     }, [chartData]);
 
-    // Custom X-axis tick: show date label when date changes
-    const CustomXTick = (props: any) => {
-        const { x, y, payload, index } = props;
-        const entry = chartData[index];
-        if (!entry) return null;
-        const prevEntry = index > 0 ? chartData[index - 1] : null;
-        const showDate = !prevEntry || prevEntry.date !== entry.date;
-        return (
-            <g transform={`translate(${x},${y})`}>
-                <text x={0} y={0} dy={14} textAnchor="middle" fill="#9ca3af" fontSize={11}>
-                    {entry.time}
-                </text>
-                {showDate && (
-                    <text x={0} y={0} dy={28} textAnchor="middle" fill="#6b7280" fontSize={9} fontWeight={600}>
-                        {entry.date}
-                    </text>
-                )}
-            </g>
-        );
-    };
-
-    // Custom tooltip to show full date+time
-    const CustomTooltipContent = ({ active, payload, label }: any) => {
-        if (!active || !payload?.length) return null;
-        const entry = payload[0]?.payload;
-        return (
-            <div style={{ backgroundColor: "#fff", border: "1px solid #e5e7eb", borderRadius: "12px", padding: "12px 16px", boxShadow: "0 4px 12px rgba(0,0,0,0.08)" }}>
-                <p style={{ fontSize: 11, color: "#6b7280", marginBottom: 8, fontWeight: 600 }}>{entry?.fullTime}</p>
-                {payload.map((p: any, i: number) => (
-                    <p key={i} style={{ fontSize: 12, color: p.color, margin: "2px 0" }}>
-                        {p.name}: <strong>{typeof p.value === "number" ? p.value.toFixed(2) : p.value}</strong>
-                    </p>
-                ))}
-            </div>
-        );
-    };
-
-    const tooltipStyle = {
-        backgroundColor: "#fff", border: "1px solid #e5e7eb",
-        borderRadius: "12px", padding: "12px 16px",
-        boxShadow: "0 4px 12px rgba(0,0,0,0.08)",
-    };
-
     // ── Handlers ──────────────────────────────────────────────────────────────
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setFormError("");
-        const payload: any = {
+        const payload = {
             timestamp: `${formData.tanggal}T${formData.jam}:00`,
             hari_ke: parseInt(formData.hari_ke) || 1,
             suhu: parseFloat(formData.suhu) || 0,
@@ -342,18 +380,6 @@ export default function SensorDataPage() {
     const formatTimestamp = (ts: string) => {
         try { return new Date(ts).toLocaleString("id-ID"); } catch { return ts; }
     };
-
-    const ThSort = ({ col, label }: { col: SortKey; label: string }) => (
-        <th
-            className="py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide cursor-pointer select-none"
-            onClick={() => handleSort(col)}
-        >
-            <div className="flex items-center gap-1.5">
-                {label}
-                <SortIcon col={col} sortKey={sortKey} sortDir={sortDir} />
-            </div>
-        </th>
-    );
 
     // ── Loading / Empty guards ─────────────────────────────────────────────────
     if (status === "loading" || kandangLoading) {
@@ -528,14 +554,10 @@ export default function SensorDataPage() {
                                 </div>
                             </div>
                             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                                {[
-                                    { label: "Suhu (°C)", name: "suhu", step: "0.1", placeholder: "28.5" },
-                                    { label: "Kelembaban (%)", name: "kelembaban", step: "0.1", placeholder: "72" },
-                                    { label: "Amoniak (ppm)", name: "amoniak", step: "0.001", placeholder: "3.2" },
-                                ].map(f => (
+{SENSOR_FIELDS.map(f => (
                                     <div key={f.name}>
                                         <label className="block text-sm font-medium text-gray-700 mb-1.5">{f.label}</label>
-                                        <Input type="number" step={f.step} name={f.name} value={(formData as any)[f.name]} onChange={e => setFormData({ ...formData, [f.name]: e.target.value })} placeholder={f.placeholder} />
+                                        <Input type="number" step={f.step} name={f.name} value={formData[f.name]} onChange={e => setFormData(prev => ({ ...prev, [f.name]: e.target.value }))} placeholder={f.placeholder} />
                                     </div>
                                 ))}
                             </div>
@@ -604,10 +626,10 @@ export default function SensorDataPage() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                        <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
+                                        <XAxis dataKey="time" tick={(props) => <ChartTick {...props} data={chartData} />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
                                         <YAxis yAxisId="s" domain={["auto", "auto"]} tick={{ fontSize: 11 }} stroke="#f97316" />
                                         <YAxis yAxisId="h" orientation="right" domain={[0, 100]} tick={{ fontSize: 11 }} stroke="#3b82f6" />
-                                        <Tooltip content={<CustomTooltipContent />} />
+                                        <Tooltip content={<ChartTooltipContent />} />
                                         <Area yAxisId="s" type="monotone" dataKey="suhu" stroke="#f97316" strokeWidth={2} fill="url(#gSuhu)" name="Suhu (°C)" />
                                         <Area yAxisId="h" type="monotone" dataKey="kelembaban" stroke="#3b82f6" strokeWidth={2} fill="url(#gHum)" name="Kelembaban (%)" />
                                     </AreaChart>
@@ -635,9 +657,9 @@ export default function SensorDataPage() {
                                             </linearGradient>
                                         </defs>
                                         <CartesianGrid strokeDasharray="3 3" stroke="#f3f4f6" />
-                                        <XAxis dataKey="time" tick={<CustomXTick />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
+                                        <XAxis dataKey="time" tick={(props) => <ChartTick {...props} data={chartData} />} stroke="#d1d5db" height={45} interval="preserveStartEnd" />
                                         <YAxis tick={{ fontSize: 11 }} stroke="#d1d5db" />
-                                        <Tooltip content={<CustomTooltipContent />} />
+                                        <Tooltip content={<ChartTooltipContent />} />
                                         <Area type="monotone" dataKey="amoniak" stroke="#ef4444" strokeWidth={2} fill="url(#gAmmo)" name="Amoniak (ppm)" dot={{ r: 3, fill: "#ef4444" }} />
                                     </AreaChart>
                                 </ResponsiveContainer>
@@ -755,16 +777,16 @@ export default function SensorDataPage() {
                                 <table className="w-full text-sm">
                                     <thead>
                                         <tr className="bg-gray-50/80">
-                                            <ThSort col="hari_ke" label="Hari" />
-                                            <ThSort col="timestamp" label="Waktu" />
-                                            <ThSort col="suhu" label="Suhu" />
-                                            <ThSort col="kelembaban" label="Kelembaban" />
-                                            <ThSort col="amoniak" label="Amoniak (ppm)" />
-                                            <ThSort col="populasi" label="Populasi" />
+                                            <SensorThSort col="hari_ke" label="Hari" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                                            <SensorThSort col="timestamp" label="Waktu" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                                            <SensorThSort col="suhu" label="Suhu" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                                            <SensorThSort col="kelembaban" label="Kelembaban" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                                            <SensorThSort col="amoniak" label="Amoniak (ppm)" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
+                                            <SensorThSort col="populasi" label="Populasi" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-gray-50">
-                                        {processedData.map((row: any) => (
+                                        {processedData.map((row) => (
                                             <tr key={row.id} className="hover:bg-gray-50/60 transition-colors">
                                                 <td className="py-3 px-4 text-sm text-gray-600">H-{row.hari_ke}</td>
                                                 <td className="py-3 px-4 text-xs text-gray-500 whitespace-nowrap">{formatTimestamp(row.timestamp)}</td>

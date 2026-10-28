@@ -13,6 +13,8 @@ export interface Kandang {
   capacity: number;
   sensorCount: number;
   isActive: boolean;
+  lokasi?: string;
+  pemilikName?: string;
 }
 
 export interface KandangPayload {
@@ -21,6 +23,7 @@ export interface KandangPayload {
   type: KandangType;
   capacity: number;
   isActive: boolean;
+  pemilikId?: string;
 }
 
 export interface KandangStore {
@@ -60,6 +63,7 @@ type ApiKandang = {
   kapasitas?: number;
   deskripsi?: string;
   is_active: boolean;
+  pemilik_id?: string;
   pemilik_name?: string;
 };
 
@@ -74,6 +78,8 @@ function mapApiKandang(k: ApiKandang): Kandang {
     capacity: k.kapasitas ?? 0,
     sensorCount: 0,
     isActive: k.is_active,
+    lokasi: k.lokasi,
+    pemilikName: k.pemilik_name,
   };
 }
 
@@ -152,6 +158,7 @@ export const useKandangStore = create<KandangStore>((set, get) => ({
         nama: payload.name,
         kode,
         kapasitas: payload.capacity,
+        pemilik_id: payload.pemilikId,
       });
       const created = extractSingleData(response);
       const newKandang: Kandang = created

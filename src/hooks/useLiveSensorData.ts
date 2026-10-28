@@ -40,18 +40,23 @@ export interface LiveSensorReading {
  */
 export function useLiveSensorData(onNewData?: (data: LiveSensorReading) => void) {
     const { data: session, status } = useSession();
+    const accessToken = session?.accessToken;
     const wsRef = useRef<WebSocket | null>(null);
     const reconnectTimerRef = useRef<NodeJS.Timeout | null>(null);
     const authFailedRef = useRef(false);
     const onNewDataRef = useRef(onNewData);
-    onNewDataRef.current = onNewData;
+    const connectRef = useRef<() => void>(() => {});
+
+    useEffect(() => {
+        onNewDataRef.current = onNewData;
+    }, [onNewData]);
 
     const [connected, setConnected] = useState(false);
     const [liveReadings, setLiveReadings] = useState<LiveSensorReading[]>([]);
     const [lastReceived, setLastReceived] = useState<Date | null>(null);
 
     const connect = useCallback(() => {
-        if (!session?.accessToken || status !== "authenticated") return;
+        if (!accessToken || status !== "authenticated") return;
 
         // Don't retry if auth already failed
         if (authFailedRef.current) return;
@@ -60,7 +65,7 @@ export function useLiveSensorData(onNewData?: (data: LiveSensorReading) => void)
         if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) return;
 
         try {
-            const url = getNotificationWsUrl(session.accessToken);
+            const url = getNotificationWsUrl(accessToken);
             const ws = new WebSocket(url);
 
             ws.onopen = () => {
@@ -71,7 +76,7 @@ export function useLiveSensorData(onNewData?: (data: LiveSensorReading) => void)
             ws.onmessage = (event) => {
                 try {
                     if (event.data === "pong") return;
-                    const message = JSON.parse(event.data);
+                    const message = JSON.parse(event.data) as { type?: string; data?: LiveSensorReading };
 
                     if (message.type === "sensor_data" && message.data) {
                         const reading = message.data as LiveSensorReading;
@@ -96,7 +101,7 @@ export function useLiveSensorData(onNewData?: (data: LiveSensorReading) => void)
 
                 // Reconnect after 5 seconds for other disconnects
                 if (event.code !== 1000) {
-                    reconnectTimerRef.current = setTimeout(connect, 5000);
+                    reconnectTimerRef.current = setTimeout(() => connectRef.current(), 5000);
                 }
             };
 
@@ -108,12 +113,12 @@ export function useLiveSensorData(onNewData?: (data: LiveSensorReading) => void)
         } catch {
             // WebSocket constructor can throw if URL is invalid
         }
-    }, [session?.accessToken, status]);
+    }, [accessToken, status]);
 
     // Reset auth failure flag when token changes (e.g. after re-login)
     useEffect(() => {
         authFailedRef.current = false;
-    }, [session?.accessToken]);
+    }, [accessToken]);
 
     // Setup ping keep-alive
     useEffect(() => {
@@ -125,6 +130,10 @@ export function useLiveSensorData(onNewData?: (data: LiveSensorReading) => void)
 
         return () => clearInterval(pingInterval);
     }, []);
+
+    useEffect(() => {
+        connectRef.current = connect;
+    }, [connect]);
 
     // Connect on mount / when connect changes
     useEffect(() => {

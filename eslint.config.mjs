@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Custom CommonJS server bootstrap (not part of the TS/React app).
+    "server.js",
   ]),
 ]);
 

@@ -1,83 +1,31 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useSession } from "next-auth/react";
+import { useState } from "react";
 import { useRouter, useParams } from "next/navigation";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input, Select } from "@/components/ui/input";
 import Link from "next/link";
-import { useUser, useUpdateUser } from "@/hooks/useApi";
+import { useUser, useUpdateUser, type User } from "@/hooks/useApi";
+import { useRole } from "@/hooks/useRole";
+import { normalizeRole, toApiRole, type UserRole } from "@/lib/roles";
 
-export default function EditUserPage() {
-    const { id } = useParams();
+function EditUserForm({ user, id }: { user: User; id: string }) {
     const router = useRouter();
-    const { data: session, status } = useSession();
-    const { data: user, loading: fetching, error: fetchError } = useUser(id as string);
     const { mutate: updateUser, loading: updating } = useUpdateUser();
 
-    const isAdmin = session?.user?.role === "admin";
-
     const [formData, setFormData] = useState({
-        full_name: "",
-        email: "",
-        phone: "",
-        role: "peternak",
-        is_active: true,
+        full_name: user.full_name || "",
+        email: user.email || "",
+        phone: user.phone || "",
+        role: normalizeRole(user.role) as UserRole,
+        is_active: user.is_active ?? true,
     });
     const [error, setError] = useState("");
 
-    // Populate form when data loads
-    useEffect(() => {
-        if (user) {
-            setFormData({
-                full_name: user.full_name || "",
-                email: user.email || "",
-                phone: user.phone || "",
-                role: user.role || "peternak",
-                is_active: user.is_active ?? true,
-            });
-        }
-    }, [user]);
-
-    if (status === "loading" || fetching) {
-        return (
-            <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
-            </div>
-        );
-    }
-
-    // Only admin can edit users
-    if (!isAdmin) {
-        return (
-            <div className="space-y-6">
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-red-700">Anda tidak memiliki akses untuk mengedit user</p>
-                </div>
-                <Link href="/users">
-                    <Button variant="secondary">← Kembali</Button>
-                </Link>
-            </div>
-        );
-    }
-
-    if (fetchError && !user) {
-        return (
-            <div className="space-y-6">
-                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-red-700">Gagal memuat data user</p>
-                </div>
-                <Link href="/users">
-                    <Button variant="secondary">← Kembali</Button>
-                </Link>
-            </div>
-        );
-    }
-
     const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData((prev) => ({ ...prev, [name]: value }));
         setError("");
     };
 
@@ -99,11 +47,11 @@ export default function EditUserPage() {
             full_name: formData.full_name,
             email: formData.email,
             phone: formData.phone || undefined,
-            role: formData.role,
+            role: toApiRole(formData.role),
             is_active: formData.is_active,
         };
 
-        const result = await updateUser(id as string, payload);
+        const result = await updateUser(id, payload);
 
         if (result.success) {
             router.push(`/users/${id}`);
@@ -114,16 +62,14 @@ export default function EditUserPage() {
 
     return (
         <div className="space-y-6">
-            {/* Breadcrumb */}
             <div className="flex items-center gap-2 text-sm text-gray-500">
                 <Link href="/users" className="hover:text-green-600">Users</Link>
                 <span>/</span>
-                <Link href={`/users/${id}`} className="hover:text-green-600">{user?.full_name || "Detail"}</Link>
+                <Link href={`/users/${id}`} className="hover:text-green-600">{user.full_name || "Detail"}</Link>
                 <span>/</span>
                 <span className="text-gray-900">Edit</span>
             </div>
 
-            {/* Form Card */}
             <Card className="max-w-2xl">
                 <CardHeader>
                     <CardTitle>Edit User</CardTitle>
@@ -181,9 +127,8 @@ export default function EditUserPage() {
                                     Role
                                 </label>
                                 <Select name="role" value={formData.role} onChange={handleChange}>
+                                    <option value="owner">Owner</option>
                                     <option value="admin">Admin</option>
-                                    <option value="pemilik">Pemilik</option>
-                                    <option value="peternak">Peternak</option>
                                 </Select>
                             </div>
 
@@ -194,7 +139,7 @@ export default function EditUserPage() {
                                 <Select
                                     name="is_active"
                                     value={formData.is_active ? "true" : "false"}
-                                    onChange={(e) => setFormData(prev => ({ ...prev, is_active: e.target.value === "true" }))}
+                                    onChange={(e) => setFormData((prev) => ({ ...prev, is_active: e.target.value === "true" }))}
                                 >
                                     <option value="true">Aktif</option>
                                     <option value="false">Non-aktif</option>
@@ -227,4 +172,54 @@ export default function EditUserPage() {
             </Card>
         </div>
     );
+}
+
+export default function EditUserPage() {
+    const { id } = useParams();
+    const { isAdmin, status } = useRole();
+    const { data: user, loading: fetching, error: fetchError } = useUser(id as string);
+
+    if (status === "loading" || fetching) {
+        return (
+            <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
+            </div>
+        );
+    }
+
+    if (!isAdmin) {
+        return (
+            <div className="space-y-6">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700">Anda tidak memiliki akses untuk mengedit user</p>
+                </div>
+                <Link href="/users">
+                    <Button variant="secondary">← Kembali</Button>
+                </Link>
+            </div>
+        );
+    }
+
+    if (fetchError && !user) {
+        return (
+            <div className="space-y-6">
+                <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+                    <p className="text-red-700">Gagal memuat data user</p>
+                </div>
+                <Link href="/users">
+                    <Button variant="secondary">← Kembali</Button>
+                </Link>
+            </div>
+        );
+    }
+
+    if (!user) {
+        return (
+            <div className="flex justify-center py-12">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
+            </div>
+        );
+    }
+
+    return <EditUserForm user={user} id={id as string} />;
 }

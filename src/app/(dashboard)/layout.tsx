@@ -7,6 +7,7 @@ import { Navbar } from "@/components/layout/navbar";
 import { NotificationProvider } from "@/components/notification-provider";
 import { SessionExpiredOverlay } from "@/components/session-expired-overlay";
 import { useTheme } from "@/components/providers/theme-provider";
+import { useRole } from "@/hooks/useRole";
 
 export default function DashboardLayout({
     children,
@@ -14,6 +15,7 @@ export default function DashboardLayout({
     children: React.ReactNode;
 }) {
     const { data: session, status } = useSession();
+    const { role, status: roleStatus } = useRole();
     const { theme } = useTheme();
     const [apiExpired, setApiExpired] = useState(false);
 
@@ -35,11 +37,19 @@ export default function DashboardLayout({
 
     const mainBg = theme === "dark" ? "bg-slate-900" : "bg-gray-50";
 
+    if (roleStatus === "loading" || !role) {
+        return (
+            <div className={`min-h-screen flex items-center justify-center ${mainBg}`}>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
+            </div>
+        );
+    }
+
     return (
         <NotificationProvider>
             {sessionExpired && <SessionExpiredOverlay />}
             <div className={`min-h-screen theme-main-bg ${mainBg}`}>
-                <Sidebar />
+                <Sidebar role={role} />
                 <Navbar />
                 <main className="ml-64 pt-24 px-8 pb-8">
                     <div className="animate-fade-in">{children}</div>

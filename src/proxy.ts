@@ -1,26 +1,22 @@
 import { auth } from "@/lib/auth";
 import { NextResponse } from "next/server";
+import { isAdminOnlyPath, isAdminRole, isProtectedPath } from "@/lib/roles";
 
 export default auth((req) => {
+    const { pathname } = req.nextUrl;
     const isLoggedIn = !!req.auth;
-    const isOnLoginPage = req.nextUrl.pathname === "/login";
-    const isOnDashboard = req.nextUrl.pathname.startsWith("/dashboard") ||
-        req.nextUrl.pathname === "/" ||
-        req.nextUrl.pathname.startsWith("/kandang") ||
-        req.nextUrl.pathname.startsWith("/users") ||
-        req.nextUrl.pathname.startsWith("/sensor-data") ||
-        req.nextUrl.pathname.startsWith("/predictions") ||
-        req.nextUrl.pathname.startsWith("/notifications") ||
-        req.nextUrl.pathname.startsWith("/settings");
+    const role = req.auth?.user?.role ?? null;
 
-    // Redirect to login if not authenticated and trying to access protected routes
-    if (!isLoggedIn && isOnDashboard) {
+    if (!isLoggedIn && isProtectedPath(pathname)) {
         return NextResponse.redirect(new URL("/login", req.url));
     }
 
-    // Redirect to dashboard if authenticated and trying to access login
-    if (isLoggedIn && isOnLoginPage) {
+    if (isLoggedIn && pathname === "/login") {
         return NextResponse.redirect(new URL("/", req.url));
+    }
+
+    if (isLoggedIn && isAdminOnlyPath(pathname) && !isAdminRole(role)) {
+        return NextResponse.redirect(new URL("/?denied=admin", req.url));
     }
 
     return NextResponse.next();

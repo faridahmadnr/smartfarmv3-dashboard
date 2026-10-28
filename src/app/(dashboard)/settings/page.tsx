@@ -10,7 +10,12 @@ import { Toast, useToast } from "@/components/ui/toast";
 import { authApi, kandangApi } from "@/lib/api";
 import { useMyActivityLogs, useMyKandang, ActivityLog } from "@/hooks/useApi";
 import { useTheme, Theme } from "@/components/providers/theme-provider";
+import { useRole } from "@/hooks/useRole";
 import { cn } from "@/lib/utils";
+
+function getErrorMessage(error: unknown, fallback: string): string {
+    return error instanceof Error && error.message ? error.message : fallback;
+}
 
 export default function SettingsPage() {
     const { data: session, status } = useSession();
@@ -85,7 +90,7 @@ export default function SettingsPage() {
     const [phoneInput, setPhoneInput] = useState("");
     const [savingPhone, setSavingPhone] = useState(false);
 
-    const isPeternak = session?.user?.role === "peternak";
+    const { isOwner, isAdmin } = useRole();
     const { data: kandang, refetch: refetchKandang } = useMyKandang();
     const [kandangForm, setKandangForm] = useState({ nama: "", lokasi: "", kapasitas: "", deskripsi: "" });
     const [savingKandang, setSavingKandang] = useState(false);
@@ -116,8 +121,8 @@ export default function SettingsPage() {
             }, session?.accessToken as string);
             showToast("Informasi kandang berhasil disimpan");
             refetchKandang();
-        } catch (err: any) {
-            setKandangError(err.message || "Gagal menyimpan informasi kandang");
+        } catch (err) {
+            setKandangError(getErrorMessage(err, "Gagal menyimpan informasi kandang"));
         } finally {
             setSavingKandang(false);
         }
@@ -127,9 +132,9 @@ export default function SettingsPage() {
 
     useEffect(() => {
         if (session?.accessToken) {
-            authApi.me(session.accessToken as string).then((res: any) => {
-                const phone = res?.data?.phone ?? res?.phone ?? "";
-                setPhoneInput(phone || "");
+            authApi.me(session.accessToken as string).then((res) => {
+                const payload = res as unknown as { data?: { phone?: string }; phone?: string };
+                setPhoneInput(payload?.data?.phone ?? payload?.phone ?? "");
             }).catch(() => {});
         }
     }, [session?.accessToken]);
@@ -140,8 +145,8 @@ export default function SettingsPage() {
         try {
             await authApi.updateProfile({ phone: phoneInput }, session?.accessToken as string);
             showToast("Nomor WhatsApp berhasil disimpan");
-        } catch (err: any) {
-            showToast(err.message || "Gagal menyimpan nomor", "error");
+        } catch (err) {
+            showToast(getErrorMessage(err, "Gagal menyimpan nomor"), "error");
         } finally {
             setSavingPhone(false);
         }
@@ -174,8 +179,8 @@ export default function SettingsPage() {
             );
             showToast("Password berhasil diubah");
             setPasswordData({ current_password: "", new_password: "", confirm_password: "" });
-        } catch (error: any) {
-            setPasswordError(error.message || "Gagal mengubah password");
+        } catch (error) {
+            setPasswordError(getErrorMessage(error, "Gagal mengubah password"));
         } finally {
             setChangingPassword(false);
         }
@@ -184,8 +189,9 @@ export default function SettingsPage() {
     const getRoleBadge = (role: string) => {
         switch (role) {
             case "admin":   return <Badge variant="info">Admin</Badge>;
-            case "pemilik": return <Badge variant="success">Pemilik</Badge>;
-            case "peternak": return <Badge variant="default">Peternak</Badge>;
+            case "owner":
+            case "pemilik":
+            case "peternak": return <Badge variant="success">Owner</Badge>;
             default:        return <Badge>{role}</Badge>;
         }
     };
@@ -303,8 +309,8 @@ export default function SettingsPage() {
                         </CardContent>
                     </Card>
 
-                    {/* Kandang Info — Peternak only */}
-                    {isPeternak && <Card>
+                    {/* Kandang Info — Owner only */}
+                    {isOwner && <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -361,7 +367,7 @@ export default function SettingsPage() {
                     </Card>}
 
                     {/* Change Password — admin only */}
-                    {session?.user?.role === "admin" && <Card>
+                    {isAdmin && <Card>
                         <CardHeader>
                             <CardTitle className="flex items-center gap-2">
                                 <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">

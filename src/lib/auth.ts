@@ -1,6 +1,7 @@
 import NextAuth from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import type { NextAuthConfig } from "next-auth";
+import { normalizeRole } from "@/lib/roles";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 const API_PREFIX = process.env.NEXT_PUBLIC_API_PREFIX || "/api/v1";
@@ -41,7 +42,7 @@ export const authConfig: NextAuthConfig = {
                         id: loginData.user.id,
                         email: loginData.user.email,
                         name: loginData.user.full_name,
-                        role: loginData.user.role,
+                        role: normalizeRole(loginData.user.role),
                         pemilik_id: loginData.user.pemilik_id,
                         accessToken: loginData.access_token,
                         refreshToken: loginData.refresh_token,

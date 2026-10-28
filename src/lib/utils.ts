@@ -31,8 +31,8 @@ export function getRoleBadgeColor(role: string): string {
     switch (role) {
         case "admin":
             return "bg-purple-500/20 text-purple-400 border-purple-500/30";
+        case "owner":
         case "pemilik":
-            return "bg-blue-500/20 text-blue-400 border-blue-500/30";
         case "peternak":
             return "bg-green-500/20 text-green-400 border-green-500/30";
         default:
@@ -44,10 +44,12 @@ export function getRoleLabel(role: string): string {
     switch (role) {
         case "admin":
             return "Admin";
+        case "owner":
+            return "Owner";
         case "pemilik":
-            return "Pemilik";
+            return "Owner";
         case "peternak":
-            return "Peternak";
+            return "Owner";
         default:
             return role;
     }

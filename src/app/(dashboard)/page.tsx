@@ -12,14 +12,15 @@ import {
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { useMyKandang, useNotifications, useSensorData, useTodayDailyLog, useTodayDeathTotal } from "@/hooks/useApi";
-import { useLiveSensorData } from "@/hooks/useLiveSensorData";
+import { useNotifications, useSensorData, useTodayDailyLog, useTodayDeathTotal, type SensorData } from "@/hooks/useApi";
+import { useLiveSensorData, type LiveSensorReading } from "@/hooks/useLiveSensorData";
 import { useRealtimeNotifications } from "@/components/notification-provider";
 import { useTick } from "@/hooks/useTick";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { DeathReportModal } from "@/components/modals/DeathReportModal";
 import { predictionsApi } from "@/lib/api";
 import { useKandangStore } from "@/store/useKandangStore";
+import { useRole } from "@/hooks/useRole";
 
 interface StatCardProps {
     label: string; value: string; unit?: string;
@@ -55,55 +56,88 @@ function getRiskLevel(predictedDeath: number) {
     return { label: "Bahaya", variant: "danger" as const, color: "text-red-600", bg: "bg-red-50 border-red-100" };
 }
 
+interface PredictionItem {
+    prediction?: string;
+    confidence?: number | null;
+    predicted_death?: number | null;
+    created_at: string;
+}
+
+interface LatestReading {
+    suhu: number;
+    kelembaban: number;
+    amoniak: number;
+    populasi?: number | null;
+    timestamp: string;
+}
+
+function extractItems<T>(response: unknown): T[] {
+    const res = response as { data?: unknown; items?: unknown } | null;
+    const data = res?.data;
+    if (Array.isArray(data)) return data as T[];
+    const nested = (data as { items?: unknown } | undefined)?.items;
+    if (Array.isArray(nested)) return nested as T[];
+    if (Array.isArray(res?.items)) return res.items as T[];
+    return [];
+}
+
+function formatAgo(value: Date | string, nowMs: number): string {
+    const m = Math.floor((nowMs - new Date(value).getTime()) / 60000);
+    if (m < 1) return "baru saja";
+    if (m < 60) return `${m} menit lalu`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h} jam lalu`;
+    return `${Math.floor(h / 24)} hari lalu`;
+}
+
 export default function DashboardPage() {
     const { status } = useSession();
     const { data: session } = useSession();
-    const isPeternak = session?.user?.role === "peternak";
-    const { data: kandang, loading: loadingKandang, refetch: refetchKandang } = useMyKandang();
+    const { role } = useRole();
+    const canRecord = role === "admin" || role === "owner";
 
-    // ── Kandang terpilih dari switcher navbar ─────────────────────────────────
     const selectedKandang = useKandangStore((s) => s.selectedKandang);
     const kandangLoading = useKandangStore((s) => s.isLoading);
     const kandangId = selectedKandang?.id;
 
-    const { data: notifData, loading: loadingNotif, refetch: refetchNotif } = useNotifications();
+    const { data: notifData, loading: loadingNotif, refetch: refetchNotif } = useNotifications(1, 20, kandangId);
     const { data: sensorData, loading: loadingSensor, refetch: refetchSensor } = useSensorData({ kandang_id: kandangId });
     const { newNotificationCount } = useRealtimeNotifications();
-    useTick();
+    const now = useTick();
 
-    const { data: todayLog } = useTodayDailyLog();
-    const { total: todayDeathTotal } = useTodayDeathTotal();
+    const { data: todayLog } = useTodayDailyLog(kandangId);
+    const { total: todayDeathTotal } = useTodayDeathTotal(kandangId);
     const [showDailyModal, setShowDailyModal] = useState(false);
     const [showDeathModal, setShowDeathModal] = useState(false);
 
-    // Latest ML predictions
-    const [latestClassify, setLatestClassify] = useState<any>(null);
-    const [latestForecast, setLatestForecast] = useState<any>(null);
+    const [latestClassify, setLatestClassify] = useState<PredictionItem | null>(null);
+    const [latestForecast, setLatestForecast] = useState<PredictionItem | null>(null);
     const [loadingPred, setLoadingPred] = useState(true);
 
-    const apiLatestSensor = kandang?.latest_sensor;
-    const [liveLatestSensor, setLiveLatestSensor] = useState<any>(null);
-    const latestSensor = liveLatestSensor ?? apiLatestSensor;
+    const [liveLatestSensor, setLiveLatestSensor] = useState<LatestReading | null>(null);
+    const sensorItems: SensorData[] = sensorData?.items ?? [];
+    const recentSensors = sensorItems.slice(0, 10);
+    const latestSensor: LatestReading | null = liveLatestSensor ?? sensorItems[0] ?? null;
+
+    const accessToken = session?.accessToken;
 
     const fetchPredictions = useCallback(async () => {
-        if (!session?.accessToken) return;
+        if (!accessToken) return;
         try {
-            const [clsRes, fcRes]: any[] = await Promise.all([
-                predictionsApi.getHistory({ page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc", type: "classification" }, session.accessToken),
-                predictionsApi.getHistory({ page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc", type: "forecasting" }, session.accessToken),
+            const [clsRes, fcRes] = await Promise.all([
+                predictionsApi.getHistory({ page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc", type: "classification" }, accessToken),
+                predictionsApi.getHistory({ page: 1, page_size: 1, sort_by: "created_at", sort_order: "desc", type: "forecasting" }, accessToken),
             ]);
-            const clsItems = Array.isArray(clsRes?.data?.items) ? clsRes.data.items : [];
-            const fcItems  = Array.isArray(fcRes?.data?.items)  ? fcRes.data.items  : [];
-            setLatestClassify(clsItems[0] ?? null);
-            setLatestForecast(fcItems[0] ?? null);
-        } catch { /* ignore */ }
-    }, [session?.accessToken]);
+            setLatestClassify(extractItems<PredictionItem>(clsRes)[0] ?? null);
+            setLatestForecast(extractItems<PredictionItem>(fcRes)[0] ?? null);
+        } catch { /* ignore */ } finally {
+            setLoadingPred(false);
+        }
+    }, [accessToken]);
 
-    const onNewData = useCallback((reading: any) => {
-        // Update sensor stats immediately from WS without waiting for API
+    const onNewData = useCallback((reading: LiveSensorReading) => {
         setLiveLatestSensor(reading);
 
-        // Update ML predictions directly from auto_prediction in WS message
         if (reading.auto_prediction?.classification) {
             setLatestClassify({
                 prediction: reading.auto_prediction.classification.prediction,
@@ -121,19 +155,18 @@ export default function DashboardPage() {
         }
 
         refetchSensor();
-        refetchKandang();
-    }, [refetchSensor, refetchKandang]);
+    }, [refetchSensor]);
 
     const { connected, lastReceived } = useLiveSensorData(onNewData);
 
     useEffect(() => {
-        if (status !== "authenticated" || !session?.accessToken) return;
-        fetchPredictions().finally(() => setLoadingPred(false));
-    }, [status, session?.accessToken, fetchPredictions]);
+        if (status !== "authenticated" || !accessToken) return;
+        fetchPredictions();
+    }, [status, accessToken, fetchPredictions]);
 
     useEffect(() => {
         if (newNotificationCount > 0) refetchNotif();
-    }, [newNotificationCount]);
+    }, [newNotificationCount, refetchNotif]);
 
     if (status === "loading" || kandangLoading) {
         return <div className="flex justify-center py-12"><div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" /></div>;
@@ -151,10 +184,8 @@ export default function DashboardPage() {
         );
     }
 
-    const notifications = notifData?.items || [];
-    const unreadAlerts = notifications.filter((n: any) => !n.is_read).slice(0, 3);
-    const sensorItems = sensorData?.items || [];
-    const recentSensors = sensorItems.slice(0, 10);
+    const notifications = notifData?.items ?? [];
+    const unreadAlerts = notifications.filter((n) => !n.is_read).slice(0, 3);
 
     const getStatus = () => {
         if (!latestSensor) return { label: "Tidak Ada Data", variant: "default" as const, dot: "bg-gray-400" };
@@ -164,26 +195,15 @@ export default function DashboardPage() {
     };
     const kandangStatus = getStatus();
 
-    const lastUpdate = lastReceived
-        ? (() => {
-            const m = Math.floor((Date.now() - lastReceived.getTime()) / 60000);
-            return m < 1 ? "baru saja" : m < 60 ? `${m} menit lalu` : `${Math.floor(m / 60)} jam lalu`;
-        })()
-        : latestSensor?.timestamp
-        ? (() => {
-            const m = Math.floor((Date.now() - new Date(latestSensor.timestamp).getTime()) / 60000);
-            return m < 60 ? `${m} menit lalu` : `${Math.floor(m / 60)} jam lalu`;
-        })() : null;
+    const lastUpdate = !now
+        ? null
+        : lastReceived
+            ? formatAgo(lastReceived, now)
+            : latestSensor?.timestamp
+                ? formatAgo(latestSensor.timestamp, now)
+                : null;
 
-    const hariKe = (recentSensors[0] as any)?.hari_ke ?? null;
-
-    const formatTimeAgo = (dateString: string) => {
-        const m = Math.floor((Date.now() - new Date(dateString).getTime()) / 60000);
-        const h = Math.floor(m / 60);
-        if (m < 60) return `${m} menit lalu`;
-        if (h < 24) return `${h} jam lalu`;
-        return `${Math.floor(h / 24)} hari lalu`;
-    };
+    const hariKe = recentSensors[0]?.hari_ke ?? null;
 
     const riskLevel = latestForecast ? getRiskLevel(latestForecast.predicted_death ?? 0) : null;
 
@@ -196,7 +216,7 @@ export default function DashboardPage() {
                     <h1 className="text-2xl font-bold text-gray-900">Dashboard Monitoring</h1>
                     <div className="flex items-center gap-3 mt-1.5 flex-wrap">
                         <p className="text-sm text-gray-400">
-                            {selectedKandang.name}{kandang?.lokasi ? ` — ${kandang.lokasi}` : ""}
+                            {selectedKandang.name}{selectedKandang.lokasi ? ` — ${selectedKandang.lokasi}` : ""}
                         </p>
                         {hariKe && (
                             <span className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-full">
@@ -215,28 +235,18 @@ export default function DashboardPage() {
                         <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500 animate-pulse" : "bg-gray-300"}`} />
                         <span className="text-xs text-gray-500">{connected ? "Live" : "Offline"}</span>
                     </div>
-                    {isPeternak && (
-                        <>
-                            <button
-                                onClick={() => setShowDeathModal(true)}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
-                            >
-                                <HeartCrack className="w-3.5 h-3.5" />Laporkan Kematian
-                            </button>
-                            <button
-                                onClick={() => setShowDailyModal(true)}
-                                className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
-                            >
-                                <BookOpen className="w-3.5 h-3.5" />Input Harian
-                            </button>
-                        </>
+                    {canRecord && (
+                        <button
+                            onClick={() => setShowDeathModal(true)}
+                            className="flex items-center gap-1.5 px-3 py-2 bg-red-600 hover:bg-red-700 text-white text-xs font-semibold rounded-xl transition-colors shadow-sm"
+                        >
+                            <HeartCrack className="w-3.5 h-3.5" />Laporkan Kematian
+                        </button>
                     )}
-                    {kandang && (
-                        <Badge variant={kandangStatus.variant} className="flex items-center gap-1.5 text-xs px-2.5 py-1">
-                            <span className={`w-2 h-2 rounded-full animate-pulse ${kandangStatus.dot}`} />
-                            Kondisi {kandangStatus.label}
-                        </Badge>
-                    )}
+                    <Badge variant={kandangStatus.variant} className="flex items-center gap-1.5 text-xs px-2.5 py-1">
+                        <span className={`w-2 h-2 rounded-full animate-pulse ${kandangStatus.dot}`} />
+                        Kondisi {kandangStatus.label}
+                    </Badge>
                 </div>
             </div>
 
@@ -244,19 +254,19 @@ export default function DashboardPage() {
             <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
                 <StatCard label="Suhu" value={latestSensor?.suhu?.toFixed(1) ?? "-"} unit="°C"
                     icon={<Thermometer className="w-4 h-4" />} iconBg="bg-amber-50" iconColor="text-amber-500" topBar="bg-amber-400"
-                    loading={loadingKandang} alert={latestSensor ? latestSensor.suhu > 32 : false} />
+                    loading={kandangLoading} alert={latestSensor ? latestSensor.suhu > 32 : false} />
                 <StatCard label="Kelembaban" value={latestSensor?.kelembaban?.toFixed(1) ?? "-"} unit="%"
                     icon={<Droplets className="w-4 h-4" />} iconBg="bg-sky-50" iconColor="text-sky-500" topBar="bg-sky-400"
-                    loading={loadingKandang} />
+                    loading={kandangLoading} />
                 <StatCard label="Amoniak" value={latestSensor?.amoniak != null ? Number(latestSensor.amoniak).toFixed(3) : "-"} unit="ppm"
                     icon={<Wind className="w-4 h-4" />} iconBg="bg-orange-50" iconColor="text-orange-500" topBar="bg-orange-400"
-                    loading={loadingKandang} alert={latestSensor ? latestSensor.amoniak > 10 : false} />
+                    loading={kandangLoading} alert={latestSensor ? latestSensor.amoniak > 10 : false} />
                 <StatCard label="Populasi" value={latestSensor?.populasi?.toLocaleString() ?? "-"} unit="ekor"
                     icon={<Users className="w-4 h-4" />} iconBg="bg-emerald-50" iconColor="text-emerald-500" topBar="bg-emerald-400"
-                    loading={loadingKandang} />
+                    loading={kandangLoading} />
                 <StatCard label="Kematian Hari Ini" value={String(todayDeathTotal)} unit="ekor"
                     icon={<HeartCrack className="w-4 h-4" />} iconBg="bg-red-50" iconColor="text-red-500" topBar="bg-red-400"
-                    loading={loadingKandang} alert={todayDeathTotal > 0} />
+                    loading={kandangLoading} alert={todayDeathTotal > 0} />
             </div>
 
             {/* ML Prediction Cards */}
@@ -282,10 +292,10 @@ export default function DashboardPage() {
                                         <p className={`text-xl font-bold ${latestClassify.prediction === "Normal" ? "text-green-600" : "text-red-600"}`}>
                                             {latestClassify.prediction}
                                         </p>
-                                        <p className="text-[11px] text-gray-400">{formatTimeAgo(latestClassify.created_at)}</p>
+                                        <p className="text-[11px] text-gray-400">{formatAgo(latestClassify.created_at, now)}</p>
                                     </div>
                                 </div>
-                                {latestClassify.confidence !== null && (
+                                {typeof latestClassify.confidence === "number" && (
                                     <span className={`text-sm font-bold px-3 py-1 rounded-xl ${latestClassify.prediction === "Normal" ? "bg-green-50 text-green-700" : "bg-red-50 text-red-600"}`}>
                                         {Math.round(latestClassify.confidence * 100)}%
                                     </span>
@@ -320,7 +330,7 @@ export default function DashboardPage() {
                                         <p className={`text-xl font-bold ${riskLevel?.color}`}>
                                             {(latestForecast.predicted_death ?? 0) === 0 ? "Aman" : `${latestForecast.predicted_death} ekor`}
                                         </p>
-                                        <p className="text-[11px] text-gray-400">{formatTimeAgo(latestForecast.created_at)}</p>
+                                        <p className="text-[11px] text-gray-400">{formatAgo(latestForecast.created_at, now)}</p>
                                     </div>
                                 </div>
                                 {riskLevel && (
@@ -375,7 +385,7 @@ export default function DashboardPage() {
                                             </tr>
                                         </thead>
                                         <tbody className="divide-y divide-gray-50">
-                                            {recentSensors.map((row: any) => (
+                                            {recentSensors.map((row) => (
                                                 <tr key={row.id} className="hover:bg-gray-50/60 transition-colors">
                                                     <td className="py-3 px-4 text-xs text-gray-500">
                                                         {new Date(row.timestamp).toLocaleString("id-ID", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
@@ -420,7 +430,7 @@ export default function DashboardPage() {
                                 </div>
                             ) : (
                                 <div className="space-y-2">
-                                    {unreadAlerts.map((alert: any) => {
+                                    {unreadAlerts.map((alert) => {
                                         const isDanger = alert.type === "danger" || alert.type === "death_forecast";
                                         const isWarning = alert.type === "alert" || alert.type === "abnormal_classification";
                                         return (
@@ -428,7 +438,7 @@ export default function DashboardPage() {
                                                 <span className={`mt-1.5 w-2 h-2 rounded-full flex-shrink-0 ${isDanger ? "bg-red-500" : isWarning ? "bg-yellow-400" : "bg-blue-400"}`} />
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-xs font-medium text-gray-800 truncate">{alert.title}</p>
-                                                    <p className="text-xs text-gray-400 mt-0.5">{formatTimeAgo(alert.created_at)}</p>
+                                                    <p className="text-xs text-gray-400 mt-0.5">{formatAgo(alert.created_at, now)}</p>
                                                 </div>
                                             </div>
                                         );
@@ -445,12 +455,14 @@ export default function DashboardPage() {
                                     <BookOpen className="w-4 h-4 text-gray-500" />
                                     <CardTitle className="text-base">Catatan Harian</CardTitle>
                                 </div>
-                                <button
-                                    onClick={() => setShowDailyModal(true)}
-                                    className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
-                                >
-                                    {todayLog ? "Edit →" : "+ Input"}
-                                </button>
+                                {canRecord && (
+                                    <button
+                                        onClick={() => setShowDailyModal(true)}
+                                        className="text-xs font-medium text-emerald-600 hover:text-emerald-700 transition-colors"
+                                    >
+                                        {todayLog ? "Edit →" : "+ Input"}
+                                    </button>
+                                )}
                             </div>
                         </CardHeader>
                         <CardContent className="p-4 space-y-3">
@@ -479,8 +491,8 @@ export default function DashboardPage() {
             </div>
 
             {/* Modals */}
-            <DailyLogModal open={showDailyModal} onClose={() => setShowDailyModal(false)} />
-            <DeathReportModal open={showDeathModal} onClose={() => setShowDeathModal(false)} />
+            <DailyLogModal open={showDailyModal} onClose={() => setShowDailyModal(false)} kandangId={kandangId} />
+            <DeathReportModal open={showDeathModal} onClose={() => setShowDeathModal(false)} kandangId={kandangId} />
         </div>
     );
 }

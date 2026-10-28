@@ -1,67 +1,57 @@
 "use client";
 
 import { useState } from "react";
-import { useSession } from "next-auth/react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import Link from "next/link";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DeleteConfirmModal } from "@/components/ui/modal";
-import Link from "next/link";
+import { RequireAdmin } from "@/components/auth/require-admin";
+import { useRole } from "@/hooks/useRole";
 import { useUsers, useDeleteUser, User } from "@/hooks/useApi";
 
-export default function UsersPage() {
-    const { data: session, status } = useSession();
-    const isAdmin = session?.user?.role === "admin";
-    const isPemilik = session?.user?.role === "pemilik";
+function getRoleBadge(role: string) {
+    switch (role) {
+        case "admin":
+            return <Badge variant="info">Admin</Badge>;
+        case "owner":
+        case "pemilik":
+        case "peternak":
+            return <Badge variant="success">Owner</Badge>;
+        default:
+            return <Badge>{role}</Badge>;
+    }
+}
 
-    const { data: apiData, loading, error, refetch } = useUsers(
-        isPemilik ? { pemilik_id: session?.user?.id } : undefined
-    );
+function isOwnerRole(role: string) {
+    return role === "owner" || role === "pemilik" || role === "peternak";
+}
+
+function UsersContent() {
+    const { isAdmin } = useRole();
+    const { data: apiData, loading, error, refetch } = useUsers();
     const { mutate: deleteUser, loading: isDeleting } = useDeleteUser();
-
     const [deleteTarget, setDeleteTarget] = useState<User | null>(null);
 
-    if (status === "loading" || loading) {
+    if (loading) {
         return (
             <div className="flex justify-center py-12">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600"></div>
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green-600" />
             </div>
         );
     }
 
-    let users = apiData?.items || [];
-
-    // Filter for pemilik
-    if (isPemilik) {
-        users = users.filter(u => u.role === "peternak");
-    }
+    const users = apiData?.items || [];
 
     const handleDelete = async () => {
         if (!deleteTarget) return;
-
         const result = await deleteUser(deleteTarget.id);
-        if (result.success) {
-            refetch();
-        }
+        if (result.success) refetch();
         setDeleteTarget(null);
-    };
-
-    const getRoleBadge = (role: string) => {
-        switch (role) {
-            case "admin":
-                return <Badge variant="info">Admin</Badge>;
-            case "pemilik":
-                return <Badge variant="success">Pemilik</Badge>;
-            case "peternak":
-                return <Badge variant="default">Peternak</Badge>;
-            default:
-                return <Badge>{role}</Badge>;
-        }
     };
 
     return (
         <div className="space-y-6">
-            {/* Delete Modal */}
             <DeleteConfirmModal
                 isOpen={!!deleteTarget}
                 onClose={() => setDeleteTarget(null)}
@@ -75,22 +65,16 @@ export default function UsersPage() {
             {/* Page Header */}
             <div className="flex items-center justify-between">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">
-                        {isAdmin ? "Manajemen User" : "Daftar Peternak"}
-                    </h1>
-                    <p className="text-gray-500 mt-1">
-                        {isAdmin
-                            ? "Kelola semua akun pengguna sistem"
-                            : "Kelola peternak di bawah akun Anda"}
-                    </p>
+                    <h1 className="text-2xl font-bold text-gray-900">Manajemen User</h1>
+                    <p className="text-gray-500 mt-1">Kelola semua akun pengguna sistem</p>
                 </div>
-                {(isAdmin || isPemilik) && (
+                {isAdmin && (
                     <Link href="/users/create">
                         <Button>
                             <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
                             </svg>
-                            {isAdmin ? "Tambah User" : "Tambah Peternak"}
+                            Tambah User
                         </Button>
                     </Link>
                 )}
@@ -99,7 +83,7 @@ export default function UsersPage() {
             {/* Error */}
             {error && (
                 <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                    <p className="text-red-700 text-sm">❌ Gagal mengambil data: {error}</p>
+                    <p className="text-red-700 text-sm">Gagal mengambil data: {error}</p>
                 </div>
             )}
 
@@ -114,18 +98,18 @@ export default function UsersPage() {
                         </div>
                         <h3 className="text-lg font-medium text-gray-900 mb-2">Belum ada user</h3>
                         <p className="text-gray-500 mb-4">Mulai dengan menambahkan user baru</p>
-                        {(isAdmin || isPemilik) && (
+                        {isAdmin && (
                             <Link href="/users/create">
-                                <Button>{isAdmin ? "Tambah User" : "Tambah Peternak"}</Button>
+                                <Button>Tambah User</Button>
                             </Link>
                         )}
                     </CardContent>
                 </Card>
             )}
 
-            {/* Stats - Only Admin */}
-            {isAdmin && users.length > 0 && (
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {/* Stats */}
+            {users.length > 0 && (
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                     <Card>
                         <CardContent className="p-4">
                             <div className="text-sm text-gray-500">Total Users</div>
@@ -136,23 +120,15 @@ export default function UsersPage() {
                         <CardContent className="p-4">
                             <div className="text-sm text-gray-500">Admin</div>
                             <div className="text-2xl font-bold text-blue-600 mt-1">
-                                {users.filter(u => u.role === "admin").length}
+                                {users.filter((u) => u.role === "admin").length}
                             </div>
                         </CardContent>
                     </Card>
                     <Card>
                         <CardContent className="p-4">
-                            <div className="text-sm text-gray-500">Pemilik</div>
+                            <div className="text-sm text-gray-500">Owner</div>
                             <div className="text-2xl font-bold text-green-600 mt-1">
-                                {users.filter(u => u.role === "pemilik").length}
-                            </div>
-                        </CardContent>
-                    </Card>
-                    <Card>
-                        <CardContent className="p-4">
-                            <div className="text-sm text-gray-500">Peternak</div>
-                            <div className="text-2xl font-bold text-gray-600 mt-1">
-                                {users.filter(u => u.role === "peternak").length}
+                                {users.filter((u) => isOwnerRole(u.role)).length}
                             </div>
                         </CardContent>
                     </Card>
@@ -171,7 +147,7 @@ export default function UsersPage() {
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Role</th>
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Contact</th>
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Status</th>
-                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Actions</th>
+                                        <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">Aksi</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -193,7 +169,7 @@ export default function UsersPage() {
                                             <td className="py-4 px-6">
                                                 <div className="flex flex-col gap-1">
                                                     {getRoleBadge(user.role)}
-                                                    {user.role === "peternak" && user.pemilik && (
+                                                    {isOwnerRole(user.role) && user.pemilik && (
                                                         <span className="text-xs text-gray-400">
                                                             Pemilik: {user.pemilik.full_name}
                                                         </span>
@@ -240,5 +216,13 @@ export default function UsersPage() {
                 </Card>
             )}
         </div>
+    );
+}
+
+export default function UsersPage() {
+    return (
+        <RequireAdmin>
+            <UsersContent />
+        </RequireAdmin>
     );
 }
