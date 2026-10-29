@@ -313,6 +313,28 @@ export const sensorDataApi = {
         const query = searchParams.toString();
         return fetchWithAuth(`${API_PREFIX}/sensor-data/stats${query ? `?${query}` : ""}`, { token });
     },
+
+    exportCsv: async (params?: { start_time?: string; end_time?: string; kandang_id?: string }, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (params?.start_time) searchParams.set("start_time", params.start_time);
+        if (params?.end_time) searchParams.set("end_time", params.end_time);
+        if (params?.kandang_id) searchParams.set("kandang_id", params.kandang_id);
+        const query = searchParams.toString();
+
+        let authToken = token;
+        if (!authToken && typeof window !== "undefined") {
+            const session = await getSession();
+            authToken = session?.accessToken;
+        }
+
+        const res = await fetch(`${API_URL}${API_PREFIX}/sensor-data/export/csv${query ? `?${query}` : ""}`, {
+            headers: {
+                ...(authToken && { Authorization: `Bearer ${authToken}` }),
+            },
+        });
+        if (!res.ok) throw new Error("Gagal mengunduh CSV sensor");
+        return await res.blob();
+    },
 };
 
 // Predictions API
@@ -547,6 +569,28 @@ export const dailyLogsApi = {
             method: "DELETE",
             token,
         });
+    },
+
+    exportCsv: async (params?: { start_date?: string; end_date?: string; kandang_id?: string }, token?: string) => {
+        const searchParams = new URLSearchParams();
+        if (params?.start_date) searchParams.set("start_date", params.start_date);
+        if (params?.end_date) searchParams.set("end_date", params.end_date);
+        if (params?.kandang_id) searchParams.set("kandang_id", params.kandang_id);
+        const query = searchParams.toString();
+
+        let authToken = token;
+        if (!authToken && typeof window !== "undefined") {
+            const session = await getSession();
+            authToken = session?.accessToken;
+        }
+
+        const res = await fetch(`${API_URL}${API_PREFIX}/daily-logs/export/csv${query ? `?${query}` : ""}`, {
+            headers: {
+                ...(authToken && { Authorization: `Bearer ${authToken}` }),
+            },
+        });
+        if (!res.ok) throw new Error("Gagal mengunduh CSV log harian");
+        return await res.blob();
     },
 };
 

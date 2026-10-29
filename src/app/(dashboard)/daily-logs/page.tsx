@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useCallback, useEffect, useMemo } from "react";
-import { BookOpen, RefreshCw, Plus, RotateCcw, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, HeartCrack, Skull, Pencil, Trash2, FileDown } from "lucide-react";
+import { BookOpen, RefreshCw, Plus, RotateCcw, ChevronsLeft, ChevronLeft, ChevronRight, ChevronsRight, HeartCrack, Skull, Pencil, Trash2, FileDown, Download } from "lucide-react";
 import { useSession } from "next-auth/react";
 import {
     AreaChart, Area, BarChart, Bar, LineChart, Line,
@@ -92,8 +92,9 @@ export default function DailyLogsPage() {
     const [chartLogs, setChartLogs] = useState<DailyLogItem[]>([]);
     const [chartDeaths, setChartDeaths] = useState<{ date: string; mati: number }[]>([]);
 
-    // ── PDF export state ──────────────────────────────────────────────────────
+    // ── Export states ────────────────────────────────────────────────────────
     const [showExport, setShowExport] = useState(false);
+    const [exportingCSV, setExportingCSV] = useState(false);
 
     // ── Death report state ────────────────────────────────────────────────────
     const [showDeathModal, setShowDeathModal] = useState(false);
@@ -230,6 +231,36 @@ export default function DailyLogsPage() {
         }
     };
 
+    const handleExportCSV = async () => {
+        if (!kandangId) return;
+        setExportingCSV(true);
+        try {
+            const blob = await dailyLogsApi.exportCsv(
+                {
+                    start_date: appliedStart || undefined,
+                    end_date: appliedEnd || undefined,
+                    kandang_id: kandangId,
+                },
+                session?.accessToken
+            );
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            const kName = selectedKandang?.name?.replace(/[^\w\s-]/g, "").replace(/\s+/g, "_") || "kandang";
+            const dateSuffix = appliedStart || appliedEnd ? `_${appliedStart || "awal"}_${appliedEnd || "akhir"}` : "";
+            a.download = `log_harian_${kName}${dateSuffix}.csv`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            window.URL.revokeObjectURL(url);
+        } catch (err) {
+            console.error("Gagal mengekspor CSV:", err);
+            alert("Gagal mengunduh CSV log harian.");
+        } finally {
+            setExportingCSV(false);
+        }
+    };
+
     const hasChartData = chartData.length > 0;
 
     return (
@@ -242,11 +273,20 @@ export default function DailyLogsPage() {
                 </div>
                 <div className="flex items-center gap-2">
                     {kandangId && (
-                        <button onClick={() => setShowExport(true)}
-                            className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
-                            <FileDown className="w-3.5 h-3.5" />
-                            Ekspor Laporan PDF
-                        </button>
+                        <>
+                            <button
+                                onClick={handleExportCSV}
+                                disabled={exportingCSV}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-blue-700 border border-blue-200 bg-blue-50/60 hover:bg-blue-100 px-3 py-1.5 rounded-lg transition-colors disabled:opacity-50">
+                                <Download className={`w-3.5 h-3.5 ${exportingCSV ? "animate-spin" : ""}`} />
+                                {exportingCSV ? "Mengekspor..." : "Ekspor CSV"}
+                            </button>
+                            <button onClick={() => setShowExport(true)}
+                                className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700 border border-emerald-200 bg-emerald-50/60 hover:bg-emerald-100 px-3 py-1.5 rounded-lg transition-colors">
+                                <FileDown className="w-3.5 h-3.5" />
+                                Ekspor Laporan PDF
+                            </button>
+                        </>
                     )}
                     <button onClick={() => { load(); refetchDeaths(); refetchDeathTotal(); loadChartData(); }} disabled={loading}
                         className="flex items-center gap-1.5 text-xs text-gray-500 hover:text-gray-800 border border-gray-200 px-3 py-1.5 rounded-lg hover:bg-gray-50 transition-colors disabled:opacity-50">
