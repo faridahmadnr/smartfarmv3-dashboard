@@ -318,8 +318,8 @@ export default function PredictionsPage() {
         <div className="space-y-6">
 
             {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between gap-4">
-                <h1 className="text-xl font-bold text-gray-900">Prediksi Machine Learning</h1>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
+                <h1 className="text-lg sm:text-xl font-bold text-gray-900">Prediksi Machine Learning</h1>
                 <button
                     onClick={() => { loadHistory(); loadSummary(appliedStart || undefined, appliedEnd || undefined); }}
                     disabled={loadingHistory}
@@ -337,18 +337,18 @@ export default function PredictionsPage() {
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                         <ShieldCheck className="w-3 h-3" /> Klasifikasi
                     </p>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
                         {[
                             { label: "Total", value: summary.classification.total, icon: <ShieldCheck className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
                             { label: "Normal", value: summary.classification.normal, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-green-600 bg-green-50" },
                             { label: "Abnormal", value: summary.classification.abnormal, icon: <AlertTriangle className="w-4 h-4" />, color: "text-red-500 bg-red-50" },
                         ].map(s => (
-                            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-gray-400">{s.label}</p>
+                                    <p className="text-[11px] sm:text-xs text-gray-400">{s.label}</p>
                                     <div className={`p-1.5 rounded-lg ${s.color}`}>{s.icon}</div>
                                 </div>
-                                <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+                                <p className="text-lg sm:text-2xl font-bold text-gray-900">{s.value}</p>
                             </div>
                         ))}
                     </div>
@@ -359,18 +359,18 @@ export default function PredictionsPage() {
                     <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                         <TrendingUp className="w-3 h-3" /> Forecasting
                     </p>
-                    <div className="grid grid-cols-3 gap-3">
+                    <div className="grid grid-cols-3 gap-2 sm:gap-3">
                         {[
                             { label: "Total", value: summary.forecasting.total, icon: <TrendingUp className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
                             { label: "Prediksi Aman", value: summary.forecasting.safe, icon: <CheckCircle2 className="w-4 h-4" />, color: "text-green-600 bg-green-50" },
                             { label: "Ada Risiko", value: summary.forecasting.risk, icon: <HeartCrack className="w-4 h-4" />, color: "text-orange-500 bg-orange-50" },
                         ].map(s => (
-                            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                            <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
                                 <div className="flex items-center justify-between mb-2">
-                                    <p className="text-xs text-gray-400">{s.label}</p>
+                                    <p className="text-[11px] sm:text-xs text-gray-400">{s.label}</p>
                                     <div className={`p-1.5 rounded-lg ${s.color}`}>{s.icon}</div>
                                 </div>
-                                <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+                                <p className="text-lg sm:text-2xl font-bold text-gray-900">{s.value}</p>
                             </div>
                         ))}
                     </div>
@@ -491,8 +491,8 @@ export default function PredictionsPage() {
             {/* ── History ─────────────────────────────────────────────────── */}
             <Card>
                 {/* Tabs + Filter toggle */}
-                <div className="flex items-center justify-between gap-4 px-5 pt-4 pb-0">
-                    <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-5 pt-4 pb-0">
+                    <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-xl p-1">
                         <button
                             onClick={() => setActiveTab("classification")}
                             className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${activeTab === "classification" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}
@@ -522,7 +522,7 @@ export default function PredictionsPage() {
 
                 {/* Filter panel */}
                 {showFilter && (
-                    <div className="mx-5 mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-wrap items-end gap-3">
+                    <div className="mx-4 sm:mx-5 mt-3 p-3 bg-gray-50 rounded-xl border border-gray-100 flex flex-wrap items-end gap-3">
                         <div className="flex flex-col gap-1">
                             <label className="text-[11px] font-medium text-gray-500">Dari Tanggal</label>
                             <input
@@ -576,7 +576,7 @@ export default function PredictionsPage() {
                                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600" />
                                     </div>
                                 )}
-                                <table className="w-full text-sm table-fixed">
+                                <table className="w-full min-w-[680px] text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
                                             <Th col="created_at" label="Waktu" className="w-[20%]" />
@@ -640,7 +640,7 @@ export default function PredictionsPage() {
                                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-green-600" />
                                     </div>
                                 )}
-                                <table className="w-full text-sm table-fixed">
+                                <table className="w-full min-w-[680px] text-sm table-fixed">
                                     <thead>
                                         <tr className="bg-gray-50/80">
                                             <Th col="created_at" label="Waktu Prediksi" className="w-[18%]" />
@@ -743,8 +743,8 @@ export default function PredictionsPage() {
 
                     {/* Pagination */}
                     {!loadingHistory && totalRecords > 0 && (
-                        <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100">
-                            <div className="flex items-center gap-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-4 border-t border-gray-100">
+                            <div className="flex flex-wrap items-center gap-3">
                                 <p className="text-xs text-gray-400">
                                     Halaman <span className="font-semibold text-gray-700">{historyPage}</span> dari{" "}
                                     <span className="font-semibold text-gray-700">{totalPages}</span>
@@ -762,7 +762,7 @@ export default function PredictionsPage() {
                                     <span>baris</span>
                                 </div>
                             </div>
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-1">
                                 <button onClick={() => setHistoryPage(1)} disabled={historyPage === 1}
                                     className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors">
                                     <ChevronsLeft className="w-4 h-4" />

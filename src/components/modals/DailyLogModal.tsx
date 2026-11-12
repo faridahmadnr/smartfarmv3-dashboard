@@ -91,8 +91,8 @@ export function DailyLogModal({ open, onClose, onSuccess, editItem, kandangId }:
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
-            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-                <div className="h-1.5 w-full bg-emerald-500" />
+            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                <div className="h-1.5 w-full bg-emerald-500 rounded-t-2xl" />
                 <div className="p-6">
                     <div className="flex items-center justify-between mb-5">
                         <div className="flex items-center gap-2.5">

@@ -42,7 +42,7 @@ export function Modal({ isOpen, onClose, title, children }: ModalProps) {
             {/* Modal */}
             <div
                 ref={modalRef}
-                className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 animate-fade-in"
+                className="relative bg-white rounded-xl shadow-xl max-w-md w-full mx-4 max-h-[calc(100dvh-2rem)] overflow-y-auto animate-fade-in"
             >
                 {/* Header */}
                 <div className="flex items-center justify-between p-4 border-b border-gray-200">

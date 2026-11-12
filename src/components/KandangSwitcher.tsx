@@ -63,17 +63,17 @@ export function KandangSwitcher() {
     <div className="relative" ref={dropdownRef}>
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-3 py-1.5 border border-gray-200 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors text-sm text-slate-700 font-medium"
+        className="flex items-center gap-2 max-w-full px-3 py-1.5 border border-gray-200 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors text-sm text-slate-700 font-medium"
       >
-        <Building2 className="w-4 h-4 text-emerald-600" />
-        <span>
+        <Building2 className="w-4 h-4 text-emerald-600 flex-shrink-0" />
+        <span className="truncate">
           {selectedKandang.name} [{selectedKandang.code}]
         </span>
-        <ChevronDown className="w-4 h-4 text-gray-500" />
+        <ChevronDown className="w-4 h-4 text-gray-500 flex-shrink-0" />
       </button>
 
       {isOpen && (
-        <div className="absolute top-full mt-2 right-0 w-64 bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50">
+        <div className="absolute top-full mt-2 right-0 w-64 max-w-[calc(100vw-2rem)] bg-white border border-gray-200 rounded-lg shadow-lg overflow-hidden z-50">
           {kandangList.map((kandang) => (
             <button
               key={kandang.id}

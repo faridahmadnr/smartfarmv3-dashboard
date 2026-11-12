@@ -144,7 +144,7 @@ function NotifItem({
 
     return (
         <div
-            className={`flex gap-4 px-5 py-4 border-l-4 transition-colors ${cfg.accentBorder} ${isRead ? "bg-white" : "bg-gray-50/60 cursor-pointer"} hover:bg-gray-50/80`}
+            className={`flex gap-3 sm:gap-4 px-4 sm:px-5 py-4 border-l-4 transition-colors ${cfg.accentBorder} ${isRead ? "bg-white" : "bg-gray-50/60 cursor-pointer"} hover:bg-gray-50/80`}
             onClick={() => !isRead && onMarkRead(notif.id)}
         >
             <div className={`flex-shrink-0 w-9 h-9 rounded-xl flex items-center justify-center ${cfg.iconBg} ${cfg.iconColor}`}>
@@ -152,7 +152,7 @@ function NotifItem({
             </div>
 
             <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-start justify-between gap-2 sm:gap-3">
                     <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-0.5">
                             <span className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${cfg.labelBg} ${cfg.labelText}`}>
@@ -184,7 +184,7 @@ function NotifItem({
                         )}
                     </div>
 
-                    <div className="flex flex-col items-end gap-2 flex-shrink-0">
+                    <div className="flex flex-col items-start sm:items-end gap-2 flex-shrink-0">
                         <span className="text-[11px] text-gray-400 whitespace-nowrap">{timeAgo(notif.created_at)}</span>
                         <span className="text-[10px] text-gray-300">{formatDate(notif.created_at)}</span>
                         {!isRead && (
@@ -226,7 +226,7 @@ function Pagination({
     }
 
     return (
-        <div className="flex items-center justify-center gap-1 px-5 py-3 border-t border-gray-100">
+        <div className="flex flex-wrap items-center justify-center gap-1 px-4 sm:px-5 py-3 border-t border-gray-100">
             <button
                 onClick={() => onPageChange(page - 1)}
                 disabled={page === 1}
@@ -349,9 +349,9 @@ export default function NotificationsPage() {
         <div className="space-y-6">
 
             {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900">Notifikasi</h1>
+                    <h1 className="text-lg sm:text-xl font-bold text-gray-900">Notifikasi</h1>
                     <p className="text-sm text-gray-500 mt-0.5">
                         {effectiveUnread > 0
                             ? <span><span className="font-semibold text-green-600">{effectiveUnread}</span> belum dibaca</span>
@@ -359,7 +359,7 @@ export default function NotificationsPage() {
                         }
                     </p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {effectiveUnread > 0 && (
                         <button
                             onClick={handleMarkAllAsRead}
@@ -382,18 +382,18 @@ export default function NotificationsPage() {
 
             {/* ── Stats ───────────────────────────────────────────────────── */}
             {total > 0 && (
-                <div className="grid grid-cols-3 gap-3">
+                <div className="grid grid-cols-3 gap-2 sm:gap-3">
                     {[
                         { label: "Total", value: total, icon: <Bell className="w-4 h-4" />, color: "text-slate-500 bg-slate-50" },
                         { label: "Kondisi Abnormal", value: abnormalOnPage, icon: <AlertTriangle className="w-4 h-4" />, color: "text-amber-500 bg-amber-50" },
                         { label: "Prediksi Kematian", value: deathOnPage, icon: <HeartCrack className="w-4 h-4" />, color: "text-red-500 bg-red-50" },
                     ].map(s => (
-                        <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-4">
+                        <div key={s.label} className="bg-white rounded-xl border border-gray-100 shadow-sm p-3 sm:p-4">
                             <div className="flex items-center justify-between mb-2">
-                                <p className="text-xs text-gray-400">{s.label}</p>
+                                <p className="text-[11px] sm:text-xs text-gray-400">{s.label}</p>
                                 <div className={`p-1.5 rounded-lg ${s.color}`}>{s.icon}</div>
                             </div>
-                            <p className="text-2xl font-bold text-gray-900">{s.value}</p>
+                            <p className="text-lg sm:text-2xl font-bold text-gray-900">{s.value}</p>
                         </div>
                     ))}
                 </div>
@@ -410,8 +410,8 @@ export default function NotificationsPage() {
             {(total > 0 || loading) && (
                 <Card>
                     {/* Tab header */}
-                    <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-                        <div className="flex items-center gap-1 bg-gray-100 rounded-xl p-1">
+                    <div className="flex flex-wrap items-center justify-between gap-2 px-4 sm:px-5 py-3.5 border-b border-gray-100">
+                        <div className="flex flex-wrap items-center gap-1 bg-gray-100 rounded-xl p-1">
                             <button
                                 onClick={() => { setFilter("all"); }}
                                 className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-all ${filter === "all" ? "bg-white shadow-sm text-gray-900" : "text-gray-500 hover:text-gray-700"}`}

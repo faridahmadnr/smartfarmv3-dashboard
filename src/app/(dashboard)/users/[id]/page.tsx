@@ -99,8 +99,8 @@ export default function UserDetailPage() {
                             {user.full_name.charAt(0).toUpperCase()}
                         </div>
                         <div className="flex-1">
-                            <div className="flex items-center gap-3 mb-2">
-                                <h1 className="text-2xl font-bold text-gray-900">{user.full_name}</h1>
+                            <div className="flex flex-wrap items-center gap-3 mb-2">
+                                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">{user.full_name}</h1>
                                 {getRoleBadge(user.role)}
                                 <Badge variant={user.is_active ? "success" : "danger"}>
                                     {user.is_active ? "Aktif" : "Nonaktif"}
@@ -109,7 +109,7 @@ export default function UserDetailPage() {
                             <p className="text-gray-500">@{user.username}</p>
                         </div>
                         {isAdmin && (
-                            <div className="flex gap-2">
+                            <div className="flex flex-wrap gap-2">
                                 <Link href={`/users/${id}/edit`}>
                                     <Button variant="secondary">
                                         <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">

@@ -13,7 +13,7 @@ interface KandangCardProps {
 
 export function KandangCard({ kandang, onEdit, onDelete, canManage = false }: KandangCardProps) {
     return (
-        <div className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200">
+        <div className="bg-white border border-slate-100 rounded-2xl p-4 sm:p-6 shadow-sm hover:shadow-md transition-all duration-200">
             {/* Badges */}
             <div className="flex items-center justify-between mb-4">
                 <span className="bg-slate-100 text-slate-600 px-3 py-1 rounded-full text-xs font-semibold">

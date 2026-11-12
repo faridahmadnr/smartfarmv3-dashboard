@@ -266,12 +266,12 @@ export default function DailyLogsPage() {
     return (
         <div className="space-y-6">
             {/* ── Header ──────────────────────────────────────────────────── */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 sm:gap-4">
                 <div>
-                    <h1 className="text-xl font-bold text-gray-900">Catatan Harian</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Catatan Harian</h1>
                     <p className="text-sm text-gray-400 mt-0.5">Log harian & laporan kematian ayam</p>
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                     {kandangId && (
                         <>
                             <button
@@ -465,7 +465,7 @@ export default function DailyLogsPage() {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
+                            <table className="w-full min-w-[720px] text-sm">
                                 <thead>
                                     <tr className="bg-gray-50/80">
                                         {["Tanggal", "Pakan (kg)", "Minum (L)", "Populasi", "Bobot (g)", "Catatan", ...(canManageLogs ? [""] : [])].map((h, i) => (
@@ -504,12 +504,12 @@ export default function DailyLogsPage() {
                     )}
 
                     {!loading && totalPages >= 1 && total > 0 && (
-                        <div className="flex items-center justify-between px-4 py-4 border-t border-gray-100">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-4 border-t border-gray-100">
                             <p className="text-xs text-gray-400">
                                 Halaman <span className="font-semibold text-gray-700">{page}</span> dari{" "}
                                 <span className="font-semibold text-gray-700">{totalPages}</span> · {total} total
                             </p>
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-1">
                                 <button onClick={() => setPage(1)} disabled={page === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft className="w-4 h-4" /></button>
                                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft className="w-4 h-4" /></button>
                                 {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
@@ -531,7 +531,7 @@ export default function DailyLogsPage() {
             </Card>
 
             {/* ── Laporan Kematian ──────────────────────────────────────── */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
                     <Skull className="w-4 h-4 text-red-400" />
                     <h2 className="text-sm font-semibold text-gray-700">Laporan Kematian</h2>
@@ -562,7 +562,7 @@ export default function DailyLogsPage() {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full text-sm">
+                            <table className="w-full min-w-[520px] text-sm">
                                 <thead>
                                     <tr className="bg-gray-50/80">
                                         {["Waktu Laporan", "Jumlah", "Catatan", ...(canManageLogs ? [""] : [])].map((h, i) => (
@@ -601,11 +601,11 @@ export default function DailyLogsPage() {
                                 </tbody>
                             </table>
                             {(deathData?.total ?? 0) > DEATH_PER_PAGE && (
-                                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-50">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-4 py-3 border-t border-gray-50">
                                     <p className="text-xs text-gray-400">
                                         Halaman {deathPage} dari {deathTotalPages} · Total {deathData?.total} laporan
                                     </p>
-                                    <div className="flex items-center gap-1">
+                                    <div className="flex flex-wrap items-center gap-1">
                                         <button onClick={() => setDeathPage(1)} disabled={deathPage === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft className="w-4 h-4" /></button>
                                         <button onClick={() => setDeathPage(p => Math.max(1, p - 1))} disabled={deathPage === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft className="w-4 h-4" /></button>
                                         <span className="px-3 py-1 text-xs font-medium text-gray-700">{deathPage}</span>

@@ -66,7 +66,7 @@ function LoginForm() {
                 )}
 
                 {/* Login Card */}
-                <div className="bg-white border border-gray-200 rounded-2xl p-8 shadow-sm">
+                <div className="bg-white border border-gray-200 rounded-2xl p-6 sm:p-8 shadow-sm">
                     <form onSubmit={handleSubmit} className="space-y-5">
                         <Input
                             id="username"

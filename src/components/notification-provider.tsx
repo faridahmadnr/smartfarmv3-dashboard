@@ -73,7 +73,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
             {/* Toast Container */}
             {toasts.length > 0 && (
-                <div className="fixed top-4 right-4 z-[100] space-y-3 max-w-sm w-full pointer-events-none">
+                <div className="fixed top-4 left-4 right-4 sm:left-auto sm:right-4 z-[100] space-y-3 w-auto sm:max-w-sm pointer-events-none">
                     {toasts.map((toast) => (
                         <div
                             key={toast.id}

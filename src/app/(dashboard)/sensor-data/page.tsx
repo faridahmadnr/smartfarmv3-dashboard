@@ -406,9 +406,9 @@ export default function SensorDataPage() {
         <div className="space-y-6">
 
             {/* Header */}
-            <div className="flex items-center justify-between gap-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 sm:gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Data Sensor</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Data Sensor</h1>
                     <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         <p className="text-sm text-gray-400">{selectedKandang.name}</p>
                         <span className="text-gray-300">·</span>
@@ -426,24 +426,24 @@ export default function SensorDataPage() {
                         )}
                     </div>
                 </div>
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
                     {/* Tab toggle */}
                     <div className="flex bg-gray-100 rounded-xl p-1 gap-0.5">
                         <button
                             onClick={() => setActiveTab("charts")}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${activeTab === "charts" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                            className={`flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${activeTab === "charts" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                         >
                             <TrendingUp className="w-4 h-4" /> Grafik
                         </button>
                         <button
                             onClick={() => setActiveTab("table")}
-                            className={`flex items-center gap-2 px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${activeTab === "table" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+                            className={`flex items-center gap-2 px-3 sm:px-3.5 py-1.5 rounded-lg text-sm font-medium transition-all ${activeTab === "table" ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
                         >
                             <Table2 className="w-4 h-4" /> Tabel
                         </button>
                     </div>
                     {canInput && (
-                        <Button onClick={() => setShowForm(!showForm)}>
+                        <Button onClick={() => setShowForm(!showForm)} className="text-xs sm:text-sm">
                             {showForm ? "Tutup" : "+ Input Manual"}
                         </Button>
                     )}
@@ -495,7 +495,7 @@ export default function SensorDataPage() {
                         </button>
                     ))}
                     {chartPreset === "custom" && (
-                        <div className="flex items-center gap-2 ml-1">
+                        <div className="flex flex-wrap items-center gap-2 sm:ml-1">
                             <input type="date" value={chartCustomStart} onChange={e => setChartCustomStart(e.target.value)}
                                 className="text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-green-500/30 text-gray-600" />
                             <span className="text-gray-300">–</span>
@@ -595,12 +595,12 @@ export default function SensorDataPage() {
                         {/* Suhu & Kelembaban */}
                         <Card>
                             <CardHeader className="border-b border-gray-100">
-                                <div className="flex items-center justify-between gap-4">
+                                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4">
                                     <div>
                                         <CardTitle className="text-base">Suhu & Kelembaban</CardTitle>
                                         {chartDateRange && <p className="text-[11px] text-gray-400 mt-0.5">{chartDateRange}</p>}
                                     </div>
-                                    <div className="flex items-center gap-4 text-xs text-gray-500">
+                                    <div className="flex flex-wrap items-center gap-3 sm:gap-4 text-xs text-gray-500">
                                         <span className="flex items-center gap-2">
                                             <span className="w-3 h-1 rounded-full bg-orange-400 inline-block" />
                                             Suhu (°C)
@@ -674,7 +674,7 @@ export default function SensorDataPage() {
             {activeTab === "table" && (
                 <Card>
                     {/* Header: title + count (left) | filter toggle (right) */}
-                    <div className="flex items-center justify-between gap-4 px-5 py-4 border-b border-gray-100">
+                    <div className="flex flex-wrap items-center justify-between gap-3 px-4 sm:px-5 py-4 border-b border-gray-100">
                         <div className="flex items-center gap-2">
                             <CardTitle className="text-base">Riwayat Data Sensor</CardTitle>
                             <span className="text-sm text-gray-400">{total.toLocaleString("id-ID")} data</span>
@@ -713,7 +713,7 @@ export default function SensorDataPage() {
 
                                 {/* Rentang Waktu */}
                                 <div className="flex flex-col gap-1">
-                                    <div className="flex items-center gap-1.5">
+                                    <div className="flex flex-wrap items-center gap-1.5">
                                         <div className="flex flex-col gap-0.5">
                                             <span className="text-[10px] text-gray-400">Dari Tanggal</span>
                                             <input
@@ -774,7 +774,7 @@ export default function SensorDataPage() {
                             </div>
                         ) : (
                             <div className="overflow-x-auto relative">
-                                <table className="w-full text-sm">
+                                <table className="w-full min-w-[720px] text-sm">
                                     <thead>
                                         <tr className="bg-gray-50/80">
                                             <SensorThSort col="hari_ke" label="Hari" sortKey={sortKey} sortDir={sortDir} onSort={handleSort} />
@@ -807,9 +807,9 @@ export default function SensorDataPage() {
 
                         {/* Pagination */}
                         {!loading && totalPages >= 1 && (
-                            <div className="flex items-center justify-between px-4 py-6 border-t border-gray-100">
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 py-4 sm:py-6 border-t border-gray-100">
                                 {/* Left: info + per-page */}
-                                <div className="flex items-center gap-3">
+                                <div className="flex flex-wrap items-center gap-3">
                                     <p className="text-xs text-gray-400">
                                         Halaman <span className="font-semibold text-gray-700">{currentPage}</span> dari{" "}
                                         <span className="font-semibold text-gray-700">{totalPages}</span>
@@ -829,7 +829,7 @@ export default function SensorDataPage() {
                                         <span>baris</span>
                                     </div>
                                 </div>
-                                <div className="flex items-center gap-1">
+                                <div className="flex flex-wrap items-center gap-1">
                                     <button
                                         onClick={() => setCurrentPage(1)}
                                         disabled={currentPage === 1}

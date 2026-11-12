@@ -99,9 +99,9 @@ export default function ActivityLogsPage() {
     return (
         <div className="space-y-6">
             {/* Page Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Activity Logs</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Activity Logs</h1>
                     <p className="text-gray-500 mt-1">
                         Monitor semua aktivitas pengguna dalam sistem
                     </p>
@@ -167,7 +167,7 @@ export default function ActivityLogsPage() {
                         </div>
                     ) : (
                         <div className="overflow-x-auto">
-                            <table className="w-full">
+                            <table className="w-full min-w-[900px]">
                                 <thead>
                                     <tr className="border-b border-gray-200">
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">User</th>
@@ -239,11 +239,11 @@ export default function ActivityLogsPage() {
                         </div>
                     )}
                     {totalLogs > PER_PAGE && (
-                        <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-gray-100">
                             <p className="text-xs text-gray-400">
                                 Halaman {page} dari {totalPages} · Total {totalLogs} aktivitas
                             </p>
-                            <div className="flex items-center gap-1">
+                            <div className="flex flex-wrap items-center gap-1">
                                 <button onClick={() => setPage(1)} disabled={page === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronsLeft className="w-4 h-4" /></button>
                                 <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-700 hover:bg-gray-100 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"><ChevronLeft className="w-4 h-4" /></button>
                                 <span className="px-3 py-1 text-xs font-medium text-gray-700">{page}</span>

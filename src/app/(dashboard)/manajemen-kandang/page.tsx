@@ -31,7 +31,7 @@ function ManajemenKandangContent() {
             {/* ── Header ──────────────────────────────────────────────────── */}
             <div className="flex flex-wrap items-center justify-between gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Manajemen Kandang</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Manajemen Kandang</h1>
                     <p className="text-sm text-gray-400 mt-1">
                         Kelola data kandang, kapasitas, dan status operasional
                     </p>

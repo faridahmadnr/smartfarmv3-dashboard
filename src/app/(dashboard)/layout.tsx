@@ -18,6 +18,7 @@ export default function DashboardLayout({
     const { role, status: roleStatus } = useRole();
     const { theme } = useTheme();
     const [apiExpired, setApiExpired] = useState(false);
+    const [sidebarOpen, setSidebarOpen] = useState(false);
 
     const sessionExpired = session?.error === "RefreshAccessTokenError" || apiExpired;
 
@@ -35,6 +36,17 @@ export default function DashboardLayout({
         }
     }, [status]);
 
+    // Close sidebar when window resizes to desktop
+    useEffect(() => {
+        const handleResize = () => {
+            if (window.innerWidth >= 1024) {
+                setSidebarOpen(false);
+            }
+        };
+        window.addEventListener("resize", handleResize);
+        return () => window.removeEventListener("resize", handleResize);
+    }, []);
+
     const mainBg = theme === "dark" ? "bg-slate-900" : "bg-gray-50";
 
     if (roleStatus === "loading" || !role) {
@@ -49,9 +61,13 @@ export default function DashboardLayout({
         <NotificationProvider>
             {sessionExpired && <SessionExpiredOverlay />}
             <div className={`min-h-screen theme-main-bg ${mainBg}`}>
-                <Sidebar role={role} />
-                <Navbar />
-                <main className="ml-64 pt-24 px-8 pb-8">
+                <Sidebar
+                    role={role}
+                    isOpen={sidebarOpen}
+                    onClose={() => setSidebarOpen(false)}
+                />
+                <Navbar onMenuToggle={() => setSidebarOpen(prev => !prev)} />
+                <main className="lg:ml-64 pt-28 sm:pt-24 px-3 sm:px-6 lg:px-8 pb-8 sm:pb-10 min-w-0">
                     <div className="animate-fade-in">{children}</div>
                 </main>
             </div>

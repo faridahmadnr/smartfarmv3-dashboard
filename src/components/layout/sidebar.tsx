@@ -12,6 +12,8 @@ import type { UserRole } from "@/lib/roles";
 
 interface SidebarProps {
     role?: UserRole;
+    isOpen?: boolean;
+    onClose?: () => void;
 }
 
 const navigation = [
@@ -108,7 +110,7 @@ const navigation = [
     },
 ];
 
-export function Sidebar({ role }: SidebarProps) {
+export function Sidebar({ role, isOpen = false, onClose }: SidebarProps) {
     const pathname = usePathname();
     const { data: session } = useSession();
     const { theme } = useTheme();
@@ -143,71 +145,108 @@ export function Sidebar({ role }: SidebarProps) {
             : "text-gray-600 hover:text-gray-900 hover:bg-gray-100";
 
     return (
-        <aside className={cn("fixed left-0 top-0 z-40 h-screen w-64 border-r theme-sidebar", theme === "dark" ? "" : "bg-white border-gray-200")}>
-            {/* Logo */}
-            <div className="flex items-center gap-3 px-6 py-5">
-                <Image
-                    src="/smartfarmv2-logo.png"
-                    alt="Broilabs Logo"
-                    width={40}
-                    height={40}
-                    className="w-10 h-10 object-contain"
+        <>
+            {/* Mobile overlay */}
+            {isOpen && (
+                <div
+                    className="fixed inset-0 z-40 bg-black/50 backdrop-blur-sm lg:hidden"
+                    onClick={onClose}
                 />
-                <div>
-                    <h1 className={cn("text-lg font-bold", titleClass)}>Broilabs</h1>
-                    <p className={cn("text-xs", subtitleClass)}>Monitoring System</p>
-                </div>
-            </div>
+            )}
 
-            {/* Navigation */}
-            <nav className="px-3 py-4 space-y-1">
-                {filteredNavigation.map((item) => {
-                    const isActive = pathname === item.href ||
-                        (item.href !== "/" && pathname.startsWith(item.href));
-
-                    return (
-                        <Link
-                            key={item.name}
-                            href={item.href}
-                            className={cn(
-                                "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
-                                isActive ? activeClass : inactiveClass
-                            )}
-                        >
-                            {item.icon}
-                            {item.name}
-                        </Link>
-                    );
-                })}
-            </nav>
-
-            {/* User section */}
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-                <div className="flex items-center gap-3 mb-3">
-                    <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", avatarClass)}>
-                        <span className="text-sm font-medium">
-                            {session?.user?.name?.charAt(0).toUpperCase() || "U"}
-                        </span>
+            {/* Sidebar */}
+            <aside
+                className={cn(
+                    "fixed left-0 top-0 z-50 h-screen w-64 max-w-[85vw] border-r theme-sidebar transition-transform duration-300 ease-in-out",
+                    theme === "dark" ? "" : "bg-white border-gray-200",
+                    // Mobile: hidden by default, shown when isOpen
+                    isOpen ? "translate-x-0" : "-translate-x-full",
+                    // Desktop: always visible
+                    "lg:translate-x-0 lg:z-40"
+                )}
+            >
+                {/* Logo */}
+                <div className="flex items-center justify-between px-6 py-5">
+                    <div className="flex items-center gap-3">
+                        <Image
+                            src="/smartfarmv2-logo.png"
+                            alt="Broilabs Logo"
+                            width={40}
+                            height={40}
+                            className="w-10 h-10 object-contain"
+                        />
+                        <div>
+                            <h1 className={cn("text-lg font-bold", titleClass)}>Broilabs</h1>
+                            <p className={cn("text-xs", subtitleClass)}>Monitoring System</p>
+                        </div>
                     </div>
-                    <div className="flex-1 min-w-0">
-                        <p className={cn("text-sm font-medium truncate", titleClass)}>
-                            {session?.user?.name || "User"}
-                        </p>
-                        <p className={cn("text-xs", subtitleClass)}>
-                            {getRoleLabel(userRole)}
-                        </p>
-                    </div>
+                    {/* Close button for mobile */}
+                    <button
+                        onClick={onClose}
+                        className={cn(
+                            "lg:hidden p-1.5 rounded-lg transition-colors",
+                            theme === "dark"
+                                ? "text-slate-400 hover:bg-slate-700"
+                                : "text-gray-400 hover:bg-gray-100"
+                        )}
+                    >
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                    </button>
                 </div>
-                <button
-                    onClick={() => signOut({ callbackUrl: "/login" })}
-                    className={cn("w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors", logoutClass)}
-                >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                    </svg>
-                    Logout
-                </button>
-            </div>
-        </aside>
+
+                {/* Navigation */}
+                <nav className="px-3 py-4 space-y-1 overflow-y-auto max-h-[calc(100dvh-200px)]">
+                    {filteredNavigation.map((item) => {
+                        const isActive = pathname === item.href ||
+                            (item.href !== "/" && pathname.startsWith(item.href));
+
+                        return (
+                            <Link
+                                key={item.name}
+                                href={item.href}
+                                onClick={onClose}
+                                className={cn(
+                                    "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200",
+                                    isActive ? activeClass : inactiveClass
+                                )}
+                            >
+                                {item.icon}
+                                {item.name}
+                            </Link>
+                        );
+                    })}
+                </nav>
+
+                {/* User section */}
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                    <div className="flex items-center gap-3 mb-3">
+                        <div className={cn("w-10 h-10 rounded-full flex items-center justify-center", avatarClass)}>
+                            <span className="text-sm font-medium">
+                                {session?.user?.name?.charAt(0).toUpperCase() || "U"}
+                            </span>
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className={cn("text-sm font-medium truncate", titleClass)}>
+                                {session?.user?.name || "User"}
+                            </p>
+                            <p className={cn("text-xs", subtitleClass)}>
+                                {getRoleLabel(userRole)}
+                            </p>
+                        </div>
+                    </div>
+                    <button
+                        onClick={() => signOut({ callbackUrl: "/login" })}
+                        className={cn("w-full flex items-center justify-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors", logoutClass)}
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                        </svg>
+                        Logout
+                    </button>
+                </div>
+            </aside>
+        </>
     );
 }

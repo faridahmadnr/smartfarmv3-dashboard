@@ -246,8 +246,8 @@ export function KandangFormModal({ onNotify = () => {} }: KandangFormModalProps)
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeFormModal} />
-            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden">
-                <div className="h-1.5 w-full bg-emerald-500" />
+            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-md max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                <div className="h-1.5 w-full bg-emerald-500 rounded-t-2xl" />
                 <div className="p-6">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-5">

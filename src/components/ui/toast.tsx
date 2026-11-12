@@ -25,7 +25,7 @@ export function Toast({ message, type = "success", duration = 3000, onClose }: T
 
     return (
         <div
-            className={`fixed bottom-6 right-6 z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all duration-200
+            className={`fixed bottom-4 left-4 right-4 sm:left-auto sm:right-6 sm:max-w-sm z-[9999] flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg border text-sm font-medium transition-all duration-200
                 ${visible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-2"}
                 ${type === "success"
                     ? "bg-white border-green-200 text-green-800"

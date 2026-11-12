@@ -231,7 +231,7 @@ export default function SettingsPage() {
 
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Pengaturan</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Pengaturan</h1>
                 <p className="text-gray-500 mt-1">Kelola profil dan keamanan akun Anda</p>
             </div>
 
@@ -249,11 +249,11 @@ export default function SettingsPage() {
                             </CardTitle>
                         </CardHeader>
                         <CardContent>
-                            <div className="flex items-start gap-6">
-                                <div className="w-20 h-20 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
+                            <div className="flex flex-col sm:flex-row items-center sm:items-start gap-4 sm:gap-6">
+                                <div className="w-20 h-20 flex-shrink-0 rounded-full bg-gradient-to-br from-green-400 to-green-600 flex items-center justify-center text-white text-2xl font-bold shadow-lg">
                                     {user?.name?.charAt(0).toUpperCase() || "U"}
                                 </div>
-                                <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div className="w-full flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 text-center sm:text-left">
                                     <div>
                                         <p className="text-sm font-medium text-gray-500 mb-1">Nama Lengkap</p>
                                         <p className="text-gray-900 font-medium">{user?.name || "Nama User"}</p>

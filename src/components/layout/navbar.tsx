@@ -3,13 +3,17 @@
 import { useSession } from "next-auth/react";
 import { useEffect, useState, useRef, useCallback } from "react";
 import Link from "next/link";
-import { Bell, Calendar, HelpCircle } from "lucide-react";
+import { Bell, Calendar, HelpCircle, Menu } from "lucide-react";
 import { notificationsApi } from "@/lib/api";
 import { useRealtimeNotifications } from "@/components/notification-provider";
 import { useTheme } from "@/components/providers/theme-provider";
 import { KandangSwitcher } from "@/components/KandangSwitcher";
 import { useKandangStore } from "@/store/useKandangStore";
 import { getRoleLabel } from "@/lib/utils";
+
+interface NavbarProps {
+    onMenuToggle?: () => void;
+}
 
 interface NotificationItem {
     id: string;
@@ -33,12 +37,12 @@ function stripEmoji(str: string) {
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export function Navbar() {
+export function Navbar({ onMenuToggle }: NavbarProps) {
   const { data: session } = useSession();
   const { theme } = useTheme();
   const headerClass = theme === "dark"
-    ? "fixed top-0 right-0 left-64 z-30 bg-slate-800 border-b border-slate-700"
-    : "fixed top-0 right-0 left-64 z-30 bg-white border-b border-gray-200";
+    ? "fixed top-0 right-0 left-0 lg:left-64 z-30 bg-slate-800 border-b border-slate-700"
+    : "fixed top-0 right-0 left-0 lg:left-64 z-30 bg-white border-b border-gray-200";
   const [unreadCount, setUnreadCount] = useState(0);
   const [showDropdown, setShowDropdown] = useState(false);
   const [dropNotifs, setDropNotifs] = useState<NotificationItem[]>([]);
@@ -118,29 +122,51 @@ export function Navbar() {
 
   return (
     <header className={headerClass}>
-      <div className="flex items-center justify-between px-8 py-4">
+      <div className="flex items-center justify-between px-4 sm:px-6 lg:px-8 py-3 lg:py-4">
         {/* AREA KIRI */}
-        <div>
-          <h2 className="text-slate-800 font-bold">
-            Selamat datang, {getRoleLabel(session?.user?.role ?? "owner")}! 👋
-          </h2>
-          <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5">
-            <Calendar className="w-3 h-3" />
-            <span>{currentDate}</span>
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+          {/* Hamburger menu button for mobile */}
+          <button
+            onClick={onMenuToggle}
+            className={`lg:hidden flex-shrink-0 p-2 rounded-lg transition-colors ${
+              theme === "dark"
+                ? "text-slate-300 hover:bg-slate-700"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+
+          <div className="min-w-0">
+            <h2 className="text-slate-800 font-bold text-sm sm:text-base truncate">
+              Selamat datang, {getRoleLabel(session?.user?.role ?? "owner")}! 👋
+            </h2>
+            <div className="text-xs text-gray-500 items-center gap-1 mt-0.5 hidden sm:flex">
+              <Calendar className="w-3 h-3" />
+              <span>{currentDate}</span>
+            </div>
           </div>
         </div>
 
         {/* AREA KANAN */}
-        <div className="flex items-center gap-4">
-          <KandangSwitcher />
+        <div className="flex items-center gap-2 sm:gap-4 flex-shrink-0">
+          {/* Kandang Switcher - hidden on very small screens */}
+          <div className="hidden sm:block">
+            <KandangSwitcher />
+          </div>
 
-          {/* Badge Status IoT */}
-          <div className="bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg flex items-center gap-1.5 text-sm font-semibold">
+          {/* Badge Status IoT - hidden on mobile */}
+          <div className="hidden md:flex bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg items-center gap-1.5 text-sm font-semibold">
             <div className={`w-2 h-2 rounded-full bg-emerald-500 ${connected ? "animate-pulse" : ""}`} />
             <span>Online (IoT Synced)</span>
           </div>
 
-          <div className="flex items-center gap-3">
+          {/* IoT status dot for mobile */}
+          <div className="md:hidden flex items-center">
+            <div className={`w-2.5 h-2.5 rounded-full ${connected ? "bg-emerald-500 animate-pulse" : "bg-gray-300"}`} />
+          </div>
+
+          <div className="flex items-center gap-2 sm:gap-3">
             {/* Tombol Notifikasi */}
             <div className="relative" ref={dropRef}>
               <button
@@ -155,7 +181,7 @@ export function Navbar() {
 
               {/* Notification Dropdown */}
               {showDropdown && (
-                <div className="absolute right-0 top-full mt-2 w-80 bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
+                <div className="absolute right-0 top-full mt-2 w-72 sm:w-80 max-w-[calc(100vw-2rem)] bg-white rounded-2xl shadow-xl border border-gray-100 overflow-hidden z-50">
                   {/* ... contents of dropdown ... */}
                   <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
                     <span className="text-sm font-semibold text-gray-900">Notifikasi</span>
@@ -180,12 +206,17 @@ export function Navbar() {
               )}
             </div>
 
-            {/* Tombol Bantuan */}
-            <button className="border border-gray-200 rounded-lg p-1.5 bg-gray-50 hover:bg-gray-100 transition-colors">
+            {/* Tombol Bantuan - hidden on mobile */}
+            <button className="hidden sm:block border border-gray-200 rounded-lg p-1.5 bg-gray-50 hover:bg-gray-100 transition-colors">
               <HelpCircle className="w-5 h-5 text-slate-600" />
             </button>
           </div>
         </div>
+      </div>
+
+      {/* Mobile Kandang Switcher - shown below navbar on small screens */}
+      <div className="sm:hidden px-4 pb-3 border-t border-gray-100">
+        <KandangSwitcher />
       </div>
     </header>
   );

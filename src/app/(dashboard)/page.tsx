@@ -211,11 +211,11 @@ export default function DashboardPage() {
         <div className="space-y-6">
 
             {/* Header */}
-            <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3 sm:gap-4">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Dashboard Monitoring</h1>
-                    <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-                        <p className="text-sm text-gray-400">
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Dashboard Monitoring</h1>
+                    <div className="flex items-center gap-2 sm:gap-3 mt-1.5 flex-wrap">
+                        <p className="text-xs sm:text-sm text-gray-400">
                             {selectedKandang.name}{selectedKandang.lokasi ? ` — ${selectedKandang.lokasi}` : ""}
                         </p>
                         {hariKe && (
@@ -230,7 +230,7 @@ export default function DashboardPage() {
                         )}
                     </div>
                 </div>
-                <div className="flex items-center gap-2 flex-shrink-0 flex-wrap">
+                <div className="flex items-center gap-2 flex-wrap">
                     <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-50 border border-gray-100">
                         <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500 animate-pulse" : "bg-gray-300"}`} />
                         <span className="text-xs text-gray-500">{connected ? "Live" : "Offline"}</span>
@@ -245,13 +245,13 @@ export default function DashboardPage() {
                     )}
                     <Badge variant={kandangStatus.variant} className="flex items-center gap-1.5 text-xs px-2.5 py-1">
                         <span className={`w-2 h-2 rounded-full animate-pulse ${kandangStatus.dot}`} />
-                        Kondisi {kandangStatus.label}
+                        <span className="hidden sm:inline">Kondisi</span> {kandangStatus.label}
                     </Badge>
                 </div>
             </div>
 
             {/* Sensor Stat Cards */}
-            <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
                 <StatCard label="Suhu" value={latestSensor?.suhu?.toFixed(1) ?? "-"} unit="°C"
                     icon={<Thermometer className="w-4 h-4" />} iconBg="bg-amber-50" iconColor="text-amber-500" topBar="bg-amber-400"
                     loading={kandangLoading} alert={latestSensor ? latestSensor.suhu > 32 : false} />
@@ -374,7 +374,7 @@ export default function DashboardPage() {
                                 </div>
                             ) : (
                                 <div className="overflow-x-auto">
-                                    <table className="w-full text-sm">
+                                    <table className="w-full min-w-[560px] text-sm">
                                         <thead>
                                             <tr className="bg-gray-50/80">
                                                 <th className="text-left py-2.5 px-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Waktu</th>

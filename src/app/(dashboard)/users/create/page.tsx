@@ -82,7 +82,7 @@ function CreateUserContent() {
 
             {/* Header */}
             <div>
-                <h1 className="text-2xl font-bold text-gray-900">Tambah User</h1>
+                <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Tambah User</h1>
                 <p className="text-gray-500 mt-1">Isi data berikut untuk membuat akun pengguna baru</p>
             </div>
 

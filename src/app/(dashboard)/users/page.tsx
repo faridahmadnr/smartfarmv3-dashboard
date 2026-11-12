@@ -63,9 +63,9 @@ function UsersContent() {
             />
 
             {/* Page Header */}
-            <div className="flex items-center justify-between">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Manajemen User</h1>
+                    <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Manajemen User</h1>
                     <p className="text-gray-500 mt-1">Kelola semua akun pengguna sistem</p>
                 </div>
                 {isAdmin && (
@@ -140,7 +140,7 @@ function UsersContent() {
                 <Card>
                     <CardContent className="p-0">
                         <div className="overflow-x-auto">
-                            <table className="w-full">
+                            <table className="w-full min-w-[760px]">
                                 <thead>
                                     <tr className="border-b border-gray-200">
                                         <th className="text-left py-4 px-6 text-sm font-medium text-gray-500">User</th>

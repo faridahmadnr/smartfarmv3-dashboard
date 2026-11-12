@@ -38,8 +38,8 @@ export function DeleteKandangModal({ onNotify = () => {} }: DeleteKandangModalPr
     return (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
             <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closeDeleteModal} />
-            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm overflow-hidden">
-                <div className="h-1.5 w-full bg-red-500" />
+            <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm max-h-[calc(100dvh-2rem)] overflow-y-auto">
+                <div className="h-1.5 w-full bg-red-500 rounded-t-2xl" />
                 <div className="p-6">
                     {/* Header */}
                     <div className="flex items-center justify-between mb-5">
