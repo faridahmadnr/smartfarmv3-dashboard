@@ -64,7 +64,7 @@ export function Navbar({ onMenuToggle }: NavbarProps) {
   }, []);
     const dropRef = useRef<HTMLDivElement>(null);
 
-    const { connected, newNotificationCount, resetNewCount } = useRealtimeNotifications();
+    const { newNotificationCount, resetNewCount } = useRealtimeNotifications();
     const totalUnread = unreadCount + newNotificationCount;
 
     // Fetch unread count (initial + polling)
@@ -153,17 +153,6 @@ export function Navbar({ onMenuToggle }: NavbarProps) {
           {/* Kandang Switcher - hidden on very small screens */}
           <div className="hidden sm:block">
             <KandangSwitcher />
-          </div>
-
-          {/* Badge Status IoT - hidden on mobile */}
-          <div className="hidden md:flex bg-emerald-50 text-emerald-700 border border-emerald-100 px-3 py-1.5 rounded-lg items-center gap-1.5 text-sm font-semibold">
-            <div className={`w-2 h-2 rounded-full bg-emerald-500 ${connected ? "animate-pulse" : ""}`} />
-            <span>Online (IoT Synced)</span>
-          </div>
-
-          {/* IoT status dot for mobile */}
-          <div className="md:hidden flex items-center">
-            <div className={`w-2.5 h-2.5 rounded-full ${connected ? "bg-emerald-500 animate-pulse" : "bg-gray-300"}`} />
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3">

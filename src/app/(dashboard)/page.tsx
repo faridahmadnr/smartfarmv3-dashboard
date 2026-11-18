@@ -18,6 +18,7 @@ import { useRealtimeNotifications } from "@/components/notification-provider";
 import { useTick } from "@/hooks/useTick";
 import { DailyLogModal } from "@/components/modals/DailyLogModal";
 import { DeathReportModal } from "@/components/modals/DeathReportModal";
+import { IoTStatusBadge } from "@/components/IoTStatusBadge";
 import { predictionsApi } from "@/lib/api";
 import { useKandangStore } from "@/store/useKandangStore";
 import { useRole } from "@/hooks/useRole";
@@ -157,7 +158,7 @@ export default function DashboardPage() {
         refetchSensor();
     }, [refetchSensor]);
 
-    const { connected, lastReceived } = useLiveSensorData(onNewData);
+    const { lastReceived } = useLiveSensorData(onNewData);
 
     useEffect(() => {
         if (status !== "authenticated" || !accessToken) return;
@@ -231,10 +232,7 @@ export default function DashboardPage() {
                     </div>
                 </div>
                 <div className="flex items-center gap-2 flex-wrap">
-                    <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-full bg-gray-50 border border-gray-100">
-                        <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500 animate-pulse" : "bg-gray-300"}`} />
-                        <span className="text-xs text-gray-500">{connected ? "Live" : "Offline"}</span>
-                    </div>
+                    <IoTStatusBadge kandangId={kandangId} />
                     {canRecord && (
                         <button
                             onClick={() => setShowDeathModal(true)}

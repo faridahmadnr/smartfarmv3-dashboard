@@ -161,6 +161,11 @@ export interface SensorData {
     death?: number;
 }
 
+export interface IoTDeviceStatus {
+    status: "online" | "offline" | "no_data";
+    last_seen: string | null;
+}
+
 export interface Notification {
     id: string;
     type: string;
@@ -421,6 +426,68 @@ export function useSensorData(params?: { page?: number; page_size?: number; star
     }, [status, session?.accessToken, refetch]);
 
     return { data, loading, isFetching, error, refetch };
+}
+
+export function useIoTStatus(kandangId?: string) {
+    const { data: session, status } = useSession();
+    const [data, setData] = useState<IoTDeviceStatus | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const requestId = useRef(0);
+    const hasLoaded = useRef(false);
+
+    useEffect(() => {
+        requestId.current += 1;
+        hasLoaded.current = false;
+        setData(null);
+        setError(null);
+        setLoading(true);
+    }, [kandangId]);
+
+    const refetch = useCallback(async () => {
+        if (status === "loading") return;
+        if (!kandangId || !session?.accessToken) {
+            setData(null);
+            setLoading(false);
+            return;
+        }
+
+        const currentRequestId = ++requestId.current;
+        if (!hasLoaded.current) setLoading(true);
+        setError(null);
+
+        try {
+            const response = await sensorDataApi.getIotStatus(kandangId, session.accessToken);
+            const result = extractEntity<IoTDeviceStatus>(response);
+            if (!result || !["online", "offline", "no_data"].includes(result.status)) {
+                throw new Error("Respons status IoT tidak valid");
+            }
+            if (requestId.current === currentRequestId) {
+                setData(result);
+                hasLoaded.current = true;
+            }
+        } catch (err) {
+            console.error("IoT status fetch error:", err);
+            if (requestId.current === currentRequestId) {
+                setData(null);
+                setError(parseError(err) ?? "Status IoT tidak dapat dimuat");
+                hasLoaded.current = true;
+            }
+        } finally {
+            if (requestId.current === currentRequestId) setLoading(false);
+        }
+    }, [kandangId, session?.accessToken, status]);
+
+    useEffect(() => {
+        if (status === "loading") return;
+        void refetch();
+
+        if (status !== "authenticated" || !kandangId || !session?.accessToken) return;
+        const interval = window.setInterval(() => void refetch(), 60_000);
+        return () => window.clearInterval(interval);
+    }, [kandangId, refetch, session?.accessToken, status]);
+
+    return { data, loading, error, refetch };
 }
 
 // Notifications hooks

@@ -307,6 +307,11 @@ export const sensorDataApi = {
         return fetchWithAuth(`${API_PREFIX}/sensor-data/latest${query ? `?${query}` : ""}`, { token });
     },
 
+    getIotStatus: async (kandangId: string, token?: string) => {
+        const searchParams = new URLSearchParams({ kandang_id: kandangId });
+        return fetchWithAuth(`${API_PREFIX}/sensor-data/iot/status?${searchParams}`, { token });
+    },
+
     getStats: async (hours?: number, token?: string) => {
         const searchParams = new URLSearchParams();
         if (hours) searchParams.set("hours", hours.toString());
