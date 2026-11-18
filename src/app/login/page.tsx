@@ -72,7 +72,7 @@ function LoginForm() {
                             id="username"
                             label="Username atau Email"
                             type="text"
-                            placeholder="Masukkan username atau email"
+                            placeholder="Username atau email"
                             value={username}
                             onChange={(e) => setUsername(e.target.value)}
                             required

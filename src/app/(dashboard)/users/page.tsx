@@ -139,7 +139,62 @@ function UsersContent() {
             {users.length > 0 && (
                 <Card>
                     <CardContent className="p-0">
-                        <div className="overflow-x-auto">
+                        <div className="space-y-3 p-3 xl:hidden">
+                            {users.map((user) => (
+                                <article key={user.id} className="rounded-xl border border-gray-100 p-4">
+                                    <div className="flex items-start justify-between gap-3">
+                                        <div className="min-w-0">
+                                            <p className="break-words text-sm font-medium text-gray-900">
+                                                {user.full_name}
+                                            </p>
+                                            <p className="break-all text-xs text-gray-500">@{user.username}</p>
+                                        </div>
+                                        {getRoleBadge(user.role)}
+                                    </div>
+                                    {isOwnerRole(user.role) && user.pemilik && (
+                                        <p className="mt-2 break-words text-xs text-gray-400">
+                                            Pemilik: {user.pemilik.full_name}
+                                        </p>
+                                    )}
+                                    <dl className="mt-4 grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
+                                        <div className="min-w-0">
+                                            <dt className="text-xs text-gray-500">Email</dt>
+                                            <dd className="break-all text-gray-900">{user.email}</dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-xs text-gray-500">Telepon</dt>
+                                            <dd className="break-words text-gray-900">{user.phone || "-"}</dd>
+                                        </div>
+                                        <div>
+                                            <dt className="text-xs text-gray-500">Status</dt>
+                                            <dd className="mt-1">
+                                                <Badge variant={user.is_active ? "success" : "danger"}>
+                                                    {user.is_active ? "Aktif" : "Nonaktif"}
+                                                </Badge>
+                                            </dd>
+                                        </div>
+                                    </dl>
+                                    <div className="mt-4 flex gap-2 border-t border-gray-100 pt-3">
+                                        <Link
+                                            href={`/users/${user.id}`}
+                                            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-gray-200 px-3 text-sm font-medium text-gray-700 hover:bg-gray-50"
+                                        >
+                                            Lihat
+                                        </Link>
+                                        {isAdmin && (
+                                            <button
+                                                type="button"
+                                                onClick={() => setDeleteTarget(user)}
+                                                className="inline-flex min-h-10 items-center justify-center rounded-lg border border-red-100 px-3 text-sm font-medium text-red-600 hover:bg-red-50"
+                                            >
+                                                Hapus
+                                            </button>
+                                        )}
+                                    </div>
+                                </article>
+                            ))}
+                        </div>
+                        <div className="hidden min-w-0 max-w-full overflow-x-auto xl:block">
                             <table className="w-full min-w-[760px]">
                                 <thead>
                                     <tr className="border-b border-gray-200">

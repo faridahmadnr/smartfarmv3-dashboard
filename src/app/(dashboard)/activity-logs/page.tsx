@@ -166,7 +166,44 @@ export default function ActivityLogsPage() {
                             <p className="text-gray-500">Belum ada data activity log</p>
                         </div>
                     ) : (
-                        <div className="overflow-x-auto">
+                        <>
+                            <div className="space-y-3 p-3 xl:hidden">
+                                {activityLogs.map((log: ActivityLog) => (
+                                    <article key={log.id} className="rounded-xl border border-gray-100 p-4">
+                                        <div className="flex items-start justify-between gap-3">
+                                            <div className="min-w-0">
+                                                <p className="break-words text-sm font-medium text-gray-900">
+                                                    {log.user_full_name || log.user_username || "Unknown"}
+                                                </p>
+                                                {log.user_username && (
+                                                    <p className="break-all text-xs text-gray-500">@{log.user_username}</p>
+                                                )}
+                                            </div>
+                                            <Badge variant={getActionColor(log.action)}>
+                                                {getActionLabel(log.action)}
+                                            </Badge>
+                                        </div>
+                                        <p className="mt-3 break-words text-sm text-gray-600">
+                                            {getActivityDescription(log)}
+                                        </p>
+                                        <dl className="mt-4 grid grid-cols-2 gap-3 border-t border-gray-100 pt-3 text-sm">
+                                            <div>
+                                                <dt className="text-xs text-gray-500">Platform</dt>
+                                                <dd className="capitalize text-gray-700">{log.platform || "-"}</dd>
+                                            </div>
+                                            <div className="min-w-0">
+                                                <dt className="text-xs text-gray-500">IP Address</dt>
+                                                <dd className="break-all font-mono text-xs text-gray-700">{log.ip_address || "-"}</dd>
+                                            </div>
+                                            <div className="col-span-2">
+                                                <dt className="text-xs text-gray-500">Waktu</dt>
+                                                <dd className="text-gray-700">{formatDate(log.created_at)}</dd>
+                                            </div>
+                                        </dl>
+                                    </article>
+                                ))}
+                            </div>
+                            <div className="hidden min-w-0 max-w-full overflow-x-auto xl:block">
                             <table className="w-full min-w-[900px]">
                                 <thead>
                                     <tr className="border-b border-gray-200">
@@ -236,7 +273,8 @@ export default function ActivityLogsPage() {
                                     ))}
                                 </tbody>
                             </table>
-                        </div>
+                            </div>
+                        </>
                     )}
                     {totalLogs > PER_PAGE && (
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 px-4 sm:px-6 py-4 border-t border-gray-100">
